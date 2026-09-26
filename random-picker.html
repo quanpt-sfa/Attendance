@@ -35,6 +35,7 @@
     <!-- SheetJS (Local library) -->
     <script src="./libs/xlsx.full.min.js"></script>
     <script src="random-picker.js"></script>
+    <script src="random-picker-attendance.js"></script>
 
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
@@ -42,8 +43,35 @@
                 container: '#randomPickerApp',
                 isModal: false,
                 title: 'GỌI TÊN NGẪU NHIÊN',
-                subtitle: 'Chọn lớp học từ cơ sở dữ liệu hoặc tải file Excel để bắt đầu'
+                subtitle: 'Chỉ gọi ngẫu nhiên sinh viên đã điểm danh vào buổi học đang mở'
             });
+
+            // Standalone mode must use attendance as the source of truth.
+            // Do not fall back to the full roster when nobody has checked in.
+            picker.loadClassFromAPI = async (classId) => {
+                picker.setStudents([]);
+                try {
+                    const result = await RandomPickerAttendance.loadPresentStudents(classId);
+                    if (result.status === 'no-open-session') {
+                        picker.showToast('⚠️ Lớp này chưa có buổi điểm danh đang mở. Không thể gọi ngẫu nhiên.', 'error');
+                        return;
+                    }
+                    if (result.status === 'no-checked-in-students') {
+                        picker.showToast('⚠️ Chưa có sinh viên nào được xác nhận có mặt. Không thể gọi ngẫu nhiên.', 'error');
+                        return;
+                    }
+
+                    picker.setStudents(result.students);
+                    const sessionLabel = result.session && result.session.session_number
+                        ? ` - Buổi ${result.session.session_number}`
+                        : '';
+                    picker.showToast(`✅ Đã nạp ${result.students.length} sinh viên có mặt${sessionLabel}.`);
+                } catch (e) {
+                    console.error('Error loading checked-in students:', e);
+                    picker.setStudents([]);
+                    picker.showToast('⚠️ Lỗi tải danh sách sinh viên có mặt!', 'error');
+                }
+            };
 
             // Show class selector and upload section for standalone page
             const classSelectBox = document.getElementById('rpClassSelectBox');
