@@ -1,5 +1,6 @@
 import io
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -90,6 +91,22 @@ class TTSWorkerProtocolTests(unittest.TestCase):
             "ĐẶNG HOÀNG YẾN",
         ):
             self.assertIn(fragment, sample)
+
+
+class PiperSynthesizerTests(unittest.TestCase):
+    def test_real_synthesis_error_is_not_masked_by_wave_close(self):
+        class BrokenVoice:
+            def synthesize_wav(self, _text, _wav_file):
+                raise RuntimeError("phonemizer exploded")
+
+        synthesizer = tts_worker.PiperSynthesizer(Path("voice.onnx"), Path("voice.onnx.json"))
+        synthesizer._voice = BrokenVoice()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "broken.wav"
+            with self.assertRaisesRegex(RuntimeError, "phonemizer exploded"):
+                synthesizer("HUỲNH QUỐC PHƯỚC", output)
+            self.assertFalse(output.exists())
 
 
 class TTSWindowsScriptContractTests(unittest.TestCase):
