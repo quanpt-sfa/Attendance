@@ -8,14 +8,29 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
+import unicodedata
 import wave
 from pathlib import Path
 from typing import Callable, TextIO
 
 DEFAULT_SMOKE_TEXT = (
-    "Nguyễn Thị Thúy Quỳnh, Huỳnh Quốc Phước, Võ Trọng Nghĩa, Đặng Hoàng Yến."
+    "Nguyễn Thị THÚY QUỲNH, HUỲNH QUỐC PHƯỚC, VÕ TRỌNG NGHĨA, ĐẶNG HOÀNG YẾN."
 )
+
+
+def prepare_spoken_name(text: str) -> str:
+    """Normalize a student name for Vietnamese eSpeak/Piper pronunciation.
+
+    eSpeak may interpret an uppercase token inside an otherwise mixed-case name
+    as an acronym (for example ``THU`` -> ``tê hát u``). Student names do not
+    need acronym semantics, so the synthesis-only representation is lowercased.
+    Display/database text is left untouched by this worker.
+    """
+    normalized = unicodedata.normalize("NFC", str(text or ""))
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized.lower()
 
 
 def handle_request(request: dict, synthesize: Callable[[str, Path], None]) -> dict:
@@ -99,9 +114,12 @@ class PiperSynthesizer:
     def __call__(self, text: str, output: Path) -> None:
         output = Path(output)
         output.parent.mkdir(parents=True, exist_ok=True)
+        spoken_text = prepare_spoken_name(text)
+        if not spoken_text:
+            raise ValueError("Synthesis text is empty after normalization")
         voice = self._load_voice()
         with wave.open(str(output), "wb") as wav_file:
-            voice.synthesize_wav(text, wav_file)
+            voice.synthesize_wav(spoken_text, wav_file)
 
 
 def _build_parser() -> argparse.ArgumentParser:
