@@ -156,7 +156,9 @@ Cần Internet cho đúng bước này. Trong thư mục Attendance trên Window
 .\Setup-TTS.bat
 ```
 
-Script tạo `.venv-tts` riêng, cài `piper-tts==1.8.0`, tải voice `vi_VN-vais1000-medium`, kiểm tra SHA-256 của model và chạy một smoke test. Piper không được cài vào Python chính của Attendance.
+Script tạo `.venv-tts` riêng, cài `piper-tts==1.8.0`, tải voice tiếng Việt NGHI-TTS `calmwoman3688`, kiểm tra SHA-256 của cả model và config, rồi chạy smoke test bằng nhiều tên Việt có dấu. Piper không được cài vào Python chính của Attendance.
+
+Voice được pin vào một revision cố định của bộ model `sannht/vi_voice` để tránh việc model thay đổi âm thầm. Config của `calmwoman3688` dùng eSpeak voice `vi` và sample rate 22050 Hz.
 
 Kiểm tra trạng thái bất kỳ lúc nào:
 
@@ -168,11 +170,13 @@ Trạng thái sẵn sàng có dạng:
 
 ```text
 Piper: READY
-Voice: vi_VN-vais1000-medium
+Voice: calmwoman3688
 Runtime: OK
 Model: OK
 Cache: 42 WAV file(s)
 ```
+
+Nếu máy đã từng cài `vi_VN-vais1000-medium`, hãy chạy lại `Setup-TTS.bat`. Cache key có chứa voice và revision nên WAV cũ tự động không được tái sử dụng; hệ thống sẽ tạo cache mới bằng `calmwoman3688` khi cần.
 
 ### Chạy Attendance
 
