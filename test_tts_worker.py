@@ -71,23 +71,38 @@ class TTSWorkerProtocolTests(unittest.TestCase):
         self.assertNotIn("not-json", stdout.getvalue())
         self.assertIn("not-json", stderr.getvalue())
 
+    def test_smoke_sample_exercises_vietnamese_names_with_diacritics(self):
+        sample = tts_worker.DEFAULT_SMOKE_TEXT
+        for fragment in (
+            "Nguyễn Thị Thúy Quỳnh",
+            "Huỳnh Quốc Phước",
+            "Võ Trọng Nghĩa",
+            "Đặng Hoàng Yến",
+        ):
+            self.assertIn(fragment, sample)
+
 
 class TTSWindowsScriptContractTests(unittest.TestCase):
-    def test_setup_script_pins_runtime_voice_revision_hash_and_smoke_test(self):
+    def test_setup_script_pins_runtime_voice_revision_hashes_and_smoke_test(self):
         text = (ROOT / "Setup-TTS.bat").read_text(encoding="utf-8").lower()
         self.assertIn("piper-tts==1.8.0", text)
         self.assertIn(".venv-tts\\scripts\\python.exe", text)
-        self.assertIn('set "voice_id=vi_vn-vais1000-medium"', text)
+        self.assertIn('set "voice_id=calmwoman3688"', text)
         self.assertIn('set "model_path=%voice_dir%\\%voice_id%.onnx"', text)
         self.assertIn('set "config_path=%voice_dir%\\%voice_id%.onnx.json"', text)
-        self.assertIn("resolve/%voice_revision%/vi/vi_vn/vais1000/medium", text)
-        self.assertIn("voice_revision=v1.0.0", text)
+        self.assertIn("huggingface.co/sannht/vi_voice/resolve/%voice_revision%/tts-model", text)
+        self.assertIn("voice_revision=62e57b18157ed213b3863a7a8a35b14d3404554b", text)
         self.assertIn(
-            "ec7c89e2c85f4d1edc24b6120c18aaf1bda614f06b511567eb9c7c0de15e2dab",
+            "8db60d8afc50dc0921fd3a1b0b942813f44cc3744dbe2534617f2b8726096e7e",
             text,
         )
-        self.assertIn("get-filehash -algorithm sha256", text)
+        self.assertIn(
+            "971f57f8d504223fee5b40d664f503cf769baf7db21f7d2ae0554a75d07de2f8",
+            text,
+        )
+        self.assertGreaterEqual(text.count("get-filehash -algorithm sha256"), 2)
         self.assertIn("--smoke-test", text)
+        self.assertNotIn("vi_vn-vais1000-medium", text)
 
     def test_check_script_is_read_only(self):
         text = (ROOT / "Check-TTS.bat").read_text(encoding="utf-8").lower()
