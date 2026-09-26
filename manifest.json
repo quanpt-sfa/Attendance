@@ -1,0 +1,9 @@
+{
+  "name": "Diem danh Offline (Zebra)",
+  "short_name": "DiemDanh",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#111827",
+  "icons": []
+}

@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Điểm danh</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b1220">
+  <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Nosifer&family=Eater&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="random-picker.css">
+  <style>
+    :root {
+      --bg-primary: #0b1220;
+      --bg-secondary: #0f172a;
+      --bg-card: #1e293b;
+      --text-primary: #e5e7eb;
+      --text-muted: #94a3b8;
+      --accent: #2563eb;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --border: rgba(255, 255, 255, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .header-left h1 {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .session-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(34, 197, 94, 0.1);
+      padding: 10px 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .session-info.no-session {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .session-info .label {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .session-info .value {
+      font-weight: 600;
+    }
+
+    .header-right {
+      display: flex;
+      gap: 10px;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .btn.success {
+      background: var(--success);
+      border-color: var(--success);
+    }
+
+    .btn.danger {
+      background: var(--danger);
+      border-color: var(--danger);
+    }
+
+    /* Main Layout */
+    .main {
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      gap: 20px;
+      padding: 20px;
+      min-height: calc(100vh - 80px);
+    }
+
+    @media (max-width: 1000px) {
+      .main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    /* Stats */
+    .stats {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .stat {
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    .stat b {
+      color: var(--accent);
+    }
+
+    /* Mode Toggle */
+    .mode-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .mode-toggle .btn {
+      flex: 1;
+      justify-content: center;
+    }
+
+    .mode-toggle .btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    /* Scan Box */
+    .scan-box {
+      margin-bottom: 16px;
+    }
+
+    .scan-box label {
+      display: block;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .scan-box input {
+      width: 100%;
+      padding: 16px;
+      border-radius: 12px;
+      border: 2px solid var(--accent);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 20px;
+      text-align: center;
+    }
+
+    .scan-box input:focus {
+      outline: none;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
+    }
+
+    /* Current Mode */
+    .current-info {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      padding: 8px 12px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    /* Student Photo */
+    .student-photo {
+      width: 50px;
+      height: 50px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .tab {
+      padding: 12px 16px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+    }
+
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* Attendance List */
+    .attendance-list {
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+
+    .attendance-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .attendance-item:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .student-details {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .student-id {
+      font-weight: 700;
+      color: var(--accent);
+      font-size: 14px;
+    }
+
+    .student-name {
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .check-time {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .section-header {
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .section-header.success {
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--success);
+    }
+
+    .section-header.warning {
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--warning);
+    }
+
+    /* Overlay */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+    }
+
+    .overlay.active {
+      display: flex;
+    }
+
+    .overlay-box {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 30px 40px;
+      text-align: center;
+      max-width: 90vw;
+    }
+
+    .overlay-title {
+      font-size: 36px;
+      font-weight: 900;
+      margin-bottom: 10px;
+    }
+
+    .overlay-sub {
+      font-size: 18px;
+      color: var(--text-muted);
+    }
+
+    .overlay-photo {
+      width: 150px;
+      height: 150px;
+      border-radius: 20px;
+      object-fit: cover;
+      margin-bottom: 20px;
+      border: 4px solid var(--success);
+      display: none;
+    }
+
+    .overlay-photo.visible {
+      display: block;
+    }
+
+    .overlay-title.success {
+      color: var(--success);
+    }
+
+    .overlay-title.warning {
+      color: var(--warning);
+    }
+
+    .overlay-title.error {
+      color: var(--danger);
+    }
+
+    /* No Session State */
+    .no-session-state {
+      text-align: center;
+      padding: 60px 20px;
+    }
+
+    .no-session-state .icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+    }
+
+    .no-session-state h2 {
+      margin-bottom: 10px;
+    }
+
+    .no-session-state p {
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-primary);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--bg-card);
+      border-radius: 4px;
+    }
+
+    .btn-action {
+      padding: 6px 10px;
+      font-size: 12px;
+      margin-left: 8px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* Absence Reason Badge */
+    .reason-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      color: #a78bfa;
+      font-size: 12px;
+      max-width: 180px;
+      cursor: pointer;
+    }
+
+    .reason-badge span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .btn-reason {
+      padding: 4px 8px;
+      font-size: 11px;
+      background: rgba(139, 92, 246, 0.2);
+      border-color: rgba(139, 92, 246, 0.4);
+      color: #a78bfa;
+    }
+
+    .btn-reason:hover {
+      background: rgba(139, 92, 246, 0.3);
+    }
+
+    /* Modal */
+    .modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 1001;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      width: 90%;
+      max-width: 400px;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    .modal-body {
+      margin-bottom: 20px;
+    }
+
+    .modal-label {
+      display: block;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .modal-input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 14px;
+    }
+
+    .modal-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .modal-footer {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .section-header.excused {
+      background: rgba(139, 92, 246, 0.1);
+      color: #a78bfa;
+    }
+
+    .attendance-item.excused {
+      background: rgba(139, 92, 246, 0.05);
+    }
+
+    /* Bonus Badge */
+    .bonus-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      cursor: pointer;
+      margin-left: 8px;
+      border: 1px solid currentColor;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .bonus-badge.positive {
+      background: rgba(34, 197, 94, 0.1);
+      color: #4ade80;
+    }
+
+    .bonus-badge.negative {
+      background: rgba(239, 68, 68, 0.1);
+      color: #f87171;
+    }
+
+    .btn-bonus {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: rgba(59, 130, 246, 0.3);
+      color: #60a5fa;
+    }
+
+    .btn-bonus:hover {
+      background: rgba(59, 130, 246, 0.25);
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <h1>📟 Điểm danh</h1>
+      <div class="session-info" id="sessionInfo">
+        <span class="label">Đang tải...</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn" id="btnSyncGoogleSheet" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.5); color: #6ee7b7; font-weight: 600;" title="Đồng bộ kết quả điểm danh lên Google Sheet">📊 Đồng bộ Google Sheet</button>
+      <button class="btn" id="btnRandomPicker" style="background: linear-gradient(135deg, #7c3aed, #db2777); border-color: #a855f7; color: #fff; font-weight: 600;">🎲 Gọi ngẫu nhiên</button>
+      <button class="btn" id="btnExport">📥 Xuất Excel</button>
+      <a href="index.html" class="btn">⚙️ Quản lý</a>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main" id="mainContent">
+    <!-- Left Panel: Scan Controls -->
+    <div class="card">
+      <div class="stats" id="stats">
+        <div class="stat">Tổng SV: <b id="kTotal">0</b></div>
+        <div class="stat">Đã vào: <b id="kCheckedIn">0</b></div>
+        <div class="stat">Đã về: <b id="kCheckedOut">0</b></div>
+        <div class="stat">Chưa vào: <b id="kMissing">0</b></div>
+      </div>
+
+      <div class="mode-toggle">
+        <button class="btn active" id="btnModeIn">✅ Vào lớp</button>
+        <button class="btn" id="btnModeOut">🚪 Ra về</button>
+      </div>
+
+      <div class="device-select" style="margin-bottom: 16px;">
+        <label style="display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">Thiết bị
+          đọc</label>
+        <select id="deviceType"
+          style="width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); font-size: 14px;">
+          <option value="card">💳 Đầu đọc thẻ từ (UID)</option>
+          <option value="barcode">📊 Máy quét mã vạch (MSSV)</option>
+        </select>
+      </div>
+
+      <div class="scan-box">
+        <label id="scanLabel">Sẵn sàng quét (giữ focus ở đây)</label>
+        <input type="text" id="scanBox" placeholder="Quét MSSV → Enter" autocomplete="off" spellcheck="false">
+      </div>
+
+      <div class="current-info">
+        <div class="pill">Chế độ: <b id="currentMode">Vào lớp</b></div>
+        <div class="pill" id="devicePill">📊 Mã vạch (MSSV)</div>
+        <div class="pill">💾 <b>attendance.db</b></div>
+      </div>
+
+      <div style="margin-top: 16px; font-size: 12px; color: var(--text-muted);">
+        <div id="lastScan">Chưa có lượt quét</div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Attendance List -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Danh sách điểm danh</div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="checkin">✅ Vào lớp (<span id="tabCheckinCount">0</span>)</button>
+        <button class="tab" data-tab="checkout">🚪 Ra về (<span id="tabCheckoutCount">0</span>)</button>
+      </div>
+
+      <div id="tabCheckin" class="tab-content">
+        <div class="attendance-list" id="checkinList"></div>
+      </div>
+
+      <div id="tabCheckout" class="tab-content hidden">
+        <div class="attendance-list" id="checkoutList"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- No Session State -->
+  <div class="no-session-state hidden" id="noSessionState">
+    <div class="icon">📅</div>
+    <h2>Chưa có buổi học nào được mở</h2>
+    <p>Vui lòng vào trang Quản lý để mở một buổi học</p>
+    <a href="index.html" class="btn primary">⚙️ Mở trang Quản lý</a>
+  </div>
+
+  <!-- Overlay -->
+  <div class="overlay" id="overlay">
+    <div class="overlay-box">
+      <img class="overlay-photo" id="ovPhoto" src="" alt="">
+      <div class="overlay-title" id="ovTitle">...</div>
+      <div class="overlay-sub" id="ovSub">...</div>
+    </div>
+  </div>
+
+  <!-- Absence Reason Modal -->
+  <div class="modal" id="absenceModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">📝 Lý do vắng</div>
+        <button class="modal-close" onclick="closeAbsenceModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 12px; font-weight: 600;" id="absenceStudentName"></div>
+        <label class="modal-label">Nhập lý do vắng mặt</label>
+        <input type="text" class="modal-input" id="absenceReasonInput" placeholder="VD: Nghỉ ốm, Có việc gia đình..."
+          autocomplete="off">
+        <input type="hidden" id="absenceStudentId">
+        <div style="margin-top: 12px;">
+          <label style="font-size: 12px; color: var(--text-muted);">
+            <strong>Gợi ý:</strong> Nghỉ ốm, Có việc gia đình, Đi công tác, Xin phép trước
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="btnDeleteReason" style="margin-right: auto; display: none;">Xóa lý do</button>
+        <button class="btn" onclick="closeAbsenceModal()">Hủy</button>
+        <button class="btn primary" onclick="saveAbsenceReason()">💾 Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bonus Modal -->
+  <div class="modal" id="bonusModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">🌟 Điểm cộng / trừ</div>
+        <button class="modal-close" onclick="closeBonusModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 12px; font-weight: 600;" id="bonusStudentName"></div>
+
+        <label class="modal-label">Điểm số (+ hoặc -)</label>
+        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 16px;">
+          <button class="btn" style="width: 40px;" onclick="adjustBonus(-1)">-</button>
+          <input type="number" class="modal-input" id="bonusPointsInput" value="0" style="text-align: center;">
+          <button class="btn" style="width: 40px;" onclick="adjustBonus(1)">+</button>
+        </div>
+
+        <label class="modal-label">Lý do / Ghi chú</label>
+        <input type="text" class="modal-input" id="bonusReasonInput" placeholder="VD: Phát biểu tốt, Đi muộn..."
+          autocomplete="off">
+        <input type="hidden" id="bonusStudentId">
+        <input type="hidden" id="bonusCheckType">
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeBonusModal()">Hủy</button>
+        <button class="btn primary" onclick="saveBonus()">💾 Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Random Picker Modal Overlay -->
+  <div class="rp-modal-overlay" id="randomPickerModal">
+    <div id="randomPickerContainer" style="width: 100%; display: flex; justify-content: center;"></div>
+  </div>
+
+  <!-- SheetJS -->
+  <script src="./libs/xlsx.full.min.js"></script>
+  <script src="random-picker.js"></script>
+
+  <script>
+    (() => {
+      // ===== State =====
+      let currentSession = null;
+      let currentMode = 'in';
+      let deviceType = 'card'; // 'barcode' for student_id, 'card' for card_uid
+      let students = [];
+      let checkins = [];
+      let absences = []; // Lý do vắng
+      let isConference = false; // Chế độ hội thảo
+
+      // ===== Elements =====
+      const els = {
+        sessionInfo: document.getElementById('sessionInfo'),
+        mainContent: document.getElementById('mainContent'),
+        noSessionState: document.getElementById('noSessionState'),
+        scanBox: document.getElementById('scanBox'),
+        scanLabel: document.getElementById('scanLabel'),
+        deviceType: document.getElementById('deviceType'),
+        devicePill: document.getElementById('devicePill'),
+        btnModeIn: document.getElementById('btnModeIn'),
+        btnModeOut: document.getElementById('btnModeOut'),
+        currentMode: document.getElementById('currentMode'),
+        kTotal: document.getElementById('kTotal'),
+        kCheckedIn: document.getElementById('kCheckedIn'),
+        kCheckedOut: document.getElementById('kCheckedOut'),
+        kMissing: document.getElementById('kMissing'),
+        tabCheckinCount: document.getElementById('tabCheckinCount'),
+        tabCheckoutCount: document.getElementById('tabCheckoutCount'),
+        checkinList: document.getElementById('checkinList'),
+        checkoutList: document.getElementById('checkoutList'),
+        lastScan: document.getElementById('lastScan'),
+        btnExport: document.getElementById('btnExport'),
+        overlay: document.getElementById('overlay'),
+        ovPhoto: document.getElementById('ovPhoto'),
+        ovTitle: document.getElementById('ovTitle'),
+        ovSub: document.getElementById('ovSub'),
+        // Modal elements
+        absenceModal: document.getElementById('absenceModal'),
+        absenceStudentName: document.getElementById('absenceStudentName'),
+        absenceStudentId: document.getElementById('absenceStudentId'),
+        absenceReasonInput: document.getElementById('absenceReasonInput'),
+        btnDeleteReason: document.getElementById('btnDeleteReason'),
+        // Bonus elements
+        bonusPointsInput: document.getElementById('bonusPointsInput'),
+        bonusReasonInput: document.getElementById('bonusReasonInput'),
+        bonusStudentId: document.getElementById('bonusStudentId'),
+        bonusCheckType: document.getElementById('bonusCheckType')
+      };
+
+      // ===== API =====
+      async function api(endpoint, options = {}) {
+        try {
+          const res = await fetch(endpoint, {
+            headers: { 'Content-Type': 'application/json' },
+            ...options
+          });
+          return await res.json();
+        } catch (e) {
+          console.error('API Error:', e);
+          return null;
+        }
+      }
+
+      // ===== Initialize =====
+      async function init() {
+        // Check URL params for session
+        const params = new URLSearchParams(window.location.search);
+        const sessionId = params.get('session');
+
+        if (sessionId) {
+          // Open specific session
+          await api(`/api/sessions/${sessionId}/open`, { method: 'POST' });
+        }
+
+        // Load current session
+        await loadCurrentSession();
+
+        // Setup event listeners
+        setupEventListeners();
+        updateDeviceUI(); // Ensure UI matches default device type
+      }
+
+      async function loadCurrentSession() {
+        currentSession = await api('/api/sessions/current');
+
+        if (!currentSession) {
+          showNoSession();
+          return;
+        }
+
+        showSession();
+        await loadStudents();
+        await loadCheckins();
+        await loadAbsences();
+        updateUI();
+        focusScan();
+      }
+
+      function showNoSession() {
+        els.mainContent.classList.add('hidden');
+        els.noSessionState.classList.remove('hidden');
+        els.sessionInfo.className = 'session-info no-session';
+        els.sessionInfo.innerHTML = '<span class="value">⚠️ Chưa mở buổi học</span>';
+      }
+
+      function showSession() {
+        els.mainContent.classList.remove('hidden');
+        els.noSessionState.classList.add('hidden');
+
+        isConference = !!currentSession.is_conference;
+
+        const date = new Date(currentSession.session_date).toLocaleDateString('vi-VN');
+        els.sessionInfo.className = 'session-info';
+        els.sessionInfo.innerHTML = `
+          <span class="value">${isConference ? '🎤' : '📚'} ${currentSession.class_name || currentSession.class_id}</span>
+          ${isConference ? '<span class="label">|</span><span class="value" style="color:var(--accent)">Hội thảo</span>' : ''}
+          <span class="label">|</span>
+          <span class="value">📅 ${date}</span>
+          <span class="label">|</span>
+          <span class="value">⏰ Tiết ${currentSession.start_period}-${currentSession.end_period}</span>
+          <span class="label">|</span>
+          <span class="value">Buổi ${currentSession.session_number}</span>
+        `;
+
+        // Update labels for conference mode
+        if (isConference) {
+          document.getElementById('kTotal').parentElement.innerHTML = 'Tổng: <b id="kTotal">0</b>';
+          document.getElementById('kCheckedIn').parentElement.innerHTML = 'Đã tham dự: <b id="kCheckedIn">0</b>';
+          document.getElementById('kMissing').parentElement.innerHTML = 'Chưa tham dự: <b id="kMissing">0</b>';
+          els.kTotal = document.getElementById('kTotal');
+          els.kCheckedIn = document.getElementById('kCheckedIn');
+          els.kMissing = document.getElementById('kMissing');
+          els.btnModeIn.textContent = '✅ Tham dự';
+          // Update tab labels
+          document.querySelector('[data-tab="checkin"]').innerHTML = '✅ Tham dự (<span id="tabCheckinCount">0</span>)';
+          document.querySelector('[data-tab="checkout"]').innerHTML = '🚪 Ra về (<span id="tabCheckoutCount">0</span>)';
+          els.tabCheckinCount = document.getElementById('tabCheckinCount');
+          els.tabCheckoutCount = document.getElementById('tabCheckoutCount');
+        }
+        updateDeviceUI();
+        setMode(currentMode);
+      }
+
+      async function loadStudents() {
+        students = await api(`/api/students?class_id=${currentSession.class_id}`) || [];
+      }
+
+      async function loadCheckins() {
+        checkins = await api(`/api/checkins?session_id=${currentSession.session_id}`) || [];
+      }
+
+      async function loadAbsences() {
+        absences = await api(`/api/absences?session_id=${currentSession.session_id}`) || [];
+      }
+
+      function updateUI() {
+        const total = students.length;
+        const checkedIn = checkins.filter(c => c.check_type === 'in');
+        const checkedOut = checkins.filter(c => c.check_type === 'out');
+
+        els.kTotal.textContent = total;
+        els.kCheckedIn.textContent = checkedIn.length;
+        els.kCheckedOut.textContent = checkedOut.length;
+        els.kMissing.textContent = Math.max(0, total - checkedIn.length);
+
+        els.tabCheckinCount.textContent = checkedIn.length;
+        els.tabCheckoutCount.textContent = checkedOut.length;
+
+        renderCheckinList(checkedIn);
+        renderCheckoutList(checkedOut, checkedIn);
+      }
+
+      function getRoleBadge(studentId) {
+        if (!isConference) return '';
+        const s = students.find(st => st.student_id === studentId);
+        if (!s) return '';
+        return s.is_lecturer
+          ? '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:rgba(37,99,235,0.15);color:#60a5fa;margin-left:6px;">👨‍🏫 GV</span>'
+          : '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:rgba(34,197,94,0.15);color:#4ade80;margin-left:6px;">👨‍🎓 SV</span>';
+      }
+
+      function renderCheckinList(checkedIn) {
+        const checkedInIds = new Set(checkedIn.map(c => c.student_id));
+        const notCheckedIn = students.filter(s => !checkedInIds.has(s.student_id));
+
+        // Separate students with reasons from those without
+        const absenceMap = new Map(absences.map(a => [a.student_id, a.reason]));
+        const withReason = notCheckedIn.filter(s => absenceMap.has(s.student_id));
+        const withoutReason = notCheckedIn.filter(s => !absenceMap.has(s.student_id));
+
+        const checkinLabel = isConference ? 'Đã tham dự' : 'Đã vào lớp';
+        const notCheckinLabel = isConference ? 'Chưa tham dự' : 'Chưa vào lớp';
+        const manualLabel = isConference ? '✋ Tham dự' : '✋ Vào lớp';
+        const emptyLabel = isConference ? 'Không có người tham dự' : 'Không có sinh viên';
+
+        let html = '';
+
+        if (checkedIn.length > 0) {
+          html += `<div class="section-header success">✅ ${checkinLabel} (${checkedIn.length})</div>`;
+          html += checkedIn.map(c => {
+            const points = c.bonus_points || 0;
+            const reason = c.bonus_reason || '';
+            let bonusHtml = '';
+
+            if (points !== 0) {
+              const cls = points > 0 ? 'positive' : 'negative';
+              const prefix = points > 0 ? '+' : '';
+              bonusHtml += `<div class="bonus-badge ${cls}" onclick="openBonusModal('${c.student_id}', '${escapeHtml(c.name || '')}', 'in', ${points}, '${escapeHtml(reason)}')">${prefix}${points}</div>`;
+            }
+            if (reason) {
+              bonusHtml += `<div class="reason-badge" style="font-size:11px; margin-left:4px;" onclick="openBonusModal('${c.student_id}', '${escapeHtml(c.name || '')}', 'in', ${points}, '${escapeHtml(reason)}')">📝 ${escapeHtml(reason)}</div>`;
+            }
+
+            return `
+            <div class="attendance-item">
+              <img class="student-photo" 
+                   src="${c.photo_path ? '/photos/' + c.photo_path : ''}"
+                   onerror="this.style.display='none'" alt="">
+              <div class="student-details">
+                <div class="student-id">${escapeHtml(c.student_id)}${getRoleBadge(c.student_id)} ${bonusHtml}</div>
+                <div class="student-name">${escapeHtml(c.name || '')}</div>
+              </div>
+              <div class="check-time">✅ ${escapeHtml(c.check_time)}</div>
+              <button class="btn btn-action btn-bonus" onclick="openBonusModal('${c.student_id}', '${escapeHtml(c.name || '')}', 'in', ${points}, '${escapeHtml(reason)}')">🌟</button>
+              <button class="btn btn-action danger" onclick="removeCheckin('${c.student_id}', 'in')">❌</button>
+            </div>
+          `}).join('');
+        }
+
+        if (withReason.length > 0) {
+          html += `<div class="section-header excused">📝 Có lý do vắng (${withReason.length})</div>`;
+          html += withReason.map(s => {
+            const reason = absenceMap.get(s.student_id);
+            return `
+            <div class="attendance-item excused">
+              <img class="student-photo" 
+                   src="${s.photo_path ? '/photos/' + s.photo_path : ''}"
+                   onerror="this.style.display='none'" alt="">
+              <div class="student-details">
+                <div class="student-id">${escapeHtml(s.student_id)}${getRoleBadge(s.student_id)}</div>
+                <div class="student-name">${escapeHtml(s.full_name || '')}</div>
+              </div>
+              <div class="reason-badge" onclick="openAbsenceModal('${s.student_id}', '${escapeHtml(s.full_name || '')}')">
+                📝 <span title="${escapeHtml(reason)}">${escapeHtml(reason)}</span>
+              </div>
+              <button class="btn btn-action success" onclick="manualCheckin('${s.student_id}', 'in')">${manualLabel}</button>
+            </div>
+          `}).join('');
+        }
+
+        if (withoutReason.length > 0) {
+          html += `<div class="section-header warning">⏳ ${notCheckinLabel} (${withoutReason.length})</div>`;
+          html += withoutReason.map(s => `
+            <div class="attendance-item">
+              <img class="student-photo" 
+                   src="${s.photo_path ? '/photos/' + s.photo_path : ''}"
+                   onerror="this.style.display='none'" alt="">
+              <div class="student-details">
+                <div class="student-id">${escapeHtml(s.student_id)}${getRoleBadge(s.student_id)}</div>
+                <div class="student-name">${escapeHtml(s.full_name || '')}</div>
+              </div>
+              <button class="btn btn-action btn-reason" onclick="openAbsenceModal('${s.student_id}', '${escapeHtml(s.full_name || '')}')">📝 Lý do</button>
+              <button class="btn btn-action success" onclick="manualCheckin('${s.student_id}', 'in')">${manualLabel}</button>
+            </div>
+          `).join('');
+        }
+
+        if (!html) {
+          html = `<div style="text-align:center;padding:40px;color:var(--text-muted);">${emptyLabel}</div>`;
+        }
+
+        els.checkinList.innerHTML = html;
+      }
+
+      function renderCheckoutList(checkedOut, checkedIn) {
+        const checkedOutIds = new Set(checkedOut.map(c => c.student_id));
+        const notCheckedOut = checkedIn.filter(c => !checkedOutIds.has(c.student_id));
+
+        let html = '';
+
+        if (checkedOut.length > 0) {
+          html += `<div class="section-header success">🚪 Đã ra về (${checkedOut.length})</div>`;
+          html += checkedOut.map(c => `
+            <div class="attendance-item">
+              <img class="student-photo" 
+                   src="${c.photo_path ? '/photos/' + c.photo_path : ''}"
+                   onerror="this.style.display='none'" alt="">
+              <div class="student-details">
+                <div class="student-id">${escapeHtml(c.student_id)}${getRoleBadge(c.student_id)}</div>
+                <div class="student-name">${escapeHtml(c.name || '')}</div>
+              </div>
+              <div class="check-time">🚪 ${escapeHtml(c.check_time)}</div>
+              <button class="btn btn-action danger" onclick="removeCheckin('${c.student_id}', 'out')">❌</button>
+            </div>
+          `).join('');
+        }
+
+        if (notCheckedOut.length > 0) {
+          html += `<div class="section-header warning">⏳ Chưa ra về (${notCheckedOut.length})</div>`;
+          html += notCheckedOut.map(c => `
+            <div class="attendance-item">
+              <img class="student-photo" 
+                   src="${c.photo_path ? '/photos/' + c.photo_path : ''}"
+                   onerror="this.style.display='none'" alt="">
+              <div class="student-details">
+                <div class="student-id">${escapeHtml(c.student_id)}${getRoleBadge(c.student_id)}</div>
+                <div class="student-name">${escapeHtml(c.name || '')}</div>
+              </div>
+              <button class="btn btn-action" style="background:var(--danger)" onclick="manualCheckin('${c.student_id}', 'out')">🚪 Ra về</button>
+            </div>
+          `).join('');
+        }
+
+        if (!html && checkedIn.length === 0) {
+          const emptyMsg = isConference ? 'Chưa có người tham dự hội thảo' : 'Chưa có sinh viên vào lớp';
+          html = `<div style="text-align:center;padding:40px;color:var(--text-muted);">${emptyMsg}</div>`;
+        } else if (!html) {
+          html = '<div style="text-align:center;padding:40px;color:var(--text-muted);">✅ Tất cả đã ra về</div>';
+        }
+
+        els.checkoutList.innerHTML = html;
+      }
+
+      // ===== Event Listeners =====
+      function setupEventListeners() {
+        // Mode toggle
+        els.btnModeIn.addEventListener('click', () => setMode('in'));
+        els.btnModeOut.addEventListener('click', () => setMode('out'));
+
+        // Scan input
+        els.scanBox.addEventListener('keydown', async (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const val = els.scanBox.value.trim();
+            els.scanBox.value = '';
+            if (val) await handleScan(val);
+          }
+        });
+
+        // Keep focus on scan box (only when no modal is open)
+        document.addEventListener('click', (e) => {
+          if (document.querySelector('.modal.active') || document.querySelector('.rp-modal-overlay.active')) {
+            return;
+          }
+          const tag = e.target.tagName.toLowerCase();
+          if (!['button', 'input', 'select', 'a'].includes(tag)) {
+            focusScan();
+          }
+        });
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+          tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            const tabName = tab.dataset.tab;
+            document.getElementById('tabCheckin').classList.toggle('hidden', tabName !== 'checkin');
+            document.getElementById('tabCheckout').classList.toggle('hidden', tabName !== 'checkout');
+          });
+        });
+
+        // Export
+        els.btnExport.addEventListener('click', exportExcel);
+
+        // Google Sheet Sync
+        const btnSync = document.getElementById('btnSyncGoogleSheet');
+        if (btnSync) {
+          btnSync.addEventListener('click', syncGoogleSheet);
+        }
+
+        // Random Picker
+        const btnRandom = document.getElementById('btnRandomPicker');
+        if (btnRandom) {
+          btnRandom.addEventListener('click', openRandomPicker);
+        }
+
+        // Device type selection
+        els.deviceType.addEventListener('change', () => {
+          deviceType = els.deviceType.value;
+          updateDeviceUI();
+          focusScan();
+        });
+      }
+
+      function updateDeviceUI() {
+        const idLabel = isConference ? 'Mã GV/SV' : 'MSSV';
+        if (deviceType === 'barcode') {
+          els.scanBox.placeholder = `Quét ${idLabel} → Enter`;
+          els.scanLabel.textContent = `Quét mã vạch ${idLabel}`;
+          els.devicePill.innerHTML = `📊 Mã vạch (${idLabel})`;
+        } else {
+          els.scanBox.placeholder = 'Quét thẻ UID → Enter';
+          els.scanLabel.textContent = 'Quét thẻ từ UID';
+          els.devicePill.innerHTML = '💳 Thẻ từ (UID)';
+        }
+      }
+
+      function setMode(mode) {
+        currentMode = mode;
+        els.btnModeIn.classList.toggle('active', mode === 'in');
+        els.btnModeOut.classList.toggle('active', mode === 'out');
+        els.currentMode.textContent = mode === 'in' ? (isConference ? 'Tham dự' : 'Vào lớp') : 'Ra về';
+        focusScan();
+      }
+
+      function focusScan() {
+        els.scanBox?.focus({ preventScroll: true });
+      }
+
+      // ===== Scan Handling =====
+      async function handleScan(scannedValue) {
+        if (!currentSession) {
+          showOverlay('error', 'Chưa mở buổi điểm danh', 'Vui lòng chọn buổi điểm danh trước');
+          return;
+        }
+
+        const scanTypeLabel = deviceType === 'barcode' ? (isConference ? 'Mã GV/SV' : 'MSSV') : 'UID';
+        els.lastScan.textContent = `Vừa quét (${scanTypeLabel}): ${scannedValue} — ${nowStr()}`;
+
+        // Find student based on device type
+        let student = null;
+        if (deviceType === 'barcode') {
+          // Match by student_id
+          student = students.find(s => s.student_id === scannedValue);
+        } else {
+          // Match by card_uid
+          student = students.find(s => s.card_uid && s.card_uid.toUpperCase() === scannedValue.toUpperCase());
+        }
+
+        if (!student) {
+          if (deviceType === 'barcode') {
+            const label = isConference ? 'Mã GV/SV' : 'MSSV';
+            showOverlay('error', `Không tìm thấy ${label} ${scannedValue}`, 'Kiểm tra lại danh sách');
+          } else {
+            showOverlay('error', `Không tìm thấy thẻ UID ${scannedValue}`, 'Thẻ chưa được đăng ký');
+          }
+          await saveLog(scannedValue, 'NOT_FOUND', `Không có trong danh sách (${scanTypeLabel})`);
+          return;
+        }
+
+        const studentId = student.student_id;
+
+        // Check existing
+        const existing = checkins.find(c => c.student_id === studentId && c.check_type === currentMode);
+        if (existing) {
+          const action = currentMode === 'in' ? (isConference ? 'tham dự hội thảo' : 'vào lớp') : 'ra về';
+          showOverlay('warning', `${student.full_name} đã ${action}`, `Lúc: ${existing.check_time}`);
+          await saveLog(studentId, 'DUPLICATE', `Đã ${action} lúc ${existing.check_time}`);
+          speak(isConference ? `${student.full_name} đã tham dự rồi` : 'xong rồi bạn ê');
+          return;
+        }
+
+        // Check if trying to checkout without checkin
+        if (currentMode === 'out') {
+          const hasCheckedIn = checkins.find(c => c.student_id === studentId && c.check_type === 'in');
+          if (!hasCheckedIn) {
+            const checkLabel = isConference ? 'chưa tham dự hội thảo' : 'chưa vào lớp';
+            showOverlay('error', `${student.full_name} ${checkLabel}`, isConference ? 'Phải tham dự trước khi ra về' : 'Phải quét vào lớp trước khi ra về');
+            await saveLog(studentId, 'NO_CHECKIN', isConference ? 'Chưa tham dự' : 'Chưa vào lớp');
+            speak(isConference ? `${student.full_name} chưa tham dự` : 'chưa vào lớp nha bạn');
+            return;
+          }
+        }
+
+        // Save checkin
+        const time = nowStr();
+        await api('/api/checkins', {
+          method: 'POST',
+          body: JSON.stringify({
+            session_id: currentSession.session_id,
+            student_id: studentId,
+            class_id: currentSession.class_id,
+            check_type: currentMode,
+            check_time: time
+          })
+        });
+
+        await saveLog(studentId, 'OK', student.full_name);
+
+        const action = currentMode === 'in' ? (isConference ? 'tham dự hội thảo' : 'vào lớp') : 'ra về';
+        const photoUrl = `/api/students/${encodeURIComponent(studentId)}/photo?class_id=${encodeURIComponent(currentSession.class_id)}`;
+        const roleLabel = isConference ? (student.is_lecturer ? '👨‍🏫 GV' : '👨‍🎓 SV') : 'MSSV';
+        showOverlay('success', `${student.full_name}`, `${roleLabel}: ${studentId} — Đã ${action} ✓`, photoUrl);
+        speak(`${student.full_name} đã ${action}`);
+
+        await loadCheckins();
+        updateUI();
+        focusScan();
+      }
+
+      async function saveLog(studentId, result, note) {
+        await api('/api/logs', {
+          method: 'POST',
+          body: JSON.stringify({
+            time: nowStr(),
+            session_id: currentSession?.session_id,
+            class_id: currentSession?.class_id,
+            student_id: studentId,
+            check_type: currentMode,
+            result,
+            note
+          })
+        });
+      }
+
+      // ===== Manual Checkin =====
+      window.manualCheckin = async function (studentId, type) {
+        if (!currentSession) return;
+
+        const student = students.find(s => s.student_id === studentId);
+        const time = nowStr();
+
+        await api('/api/checkins', {
+          method: 'POST',
+          body: JSON.stringify({
+            session_id: currentSession.session_id,
+            student_id: studentId,
+            class_id: currentSession.class_id,
+            check_type: type,
+            check_time: time
+          })
+        });
+
+        await saveLog(studentId, 'OK', `✋ Thủ công - ${student?.full_name || studentId}`);
+
+        const action = type === 'in' ? (isConference ? 'tham dự hội thảo' : 'vào lớp') : 'ra về';
+        showOverlay('success', `${student?.full_name || studentId}`, `Đã ${action} (thủ công)`);
+        speak(`${student?.full_name || studentId} đã ${action}`);
+
+        await loadCheckins();
+        updateUI();
+      };
+
+      window.removeCheckin = async function (studentId, type) {
+        if (!currentSession) return;
+        if (!confirm('Xóa điểm danh này?')) return;
+
+        await api(`/api/checkins?session_id=${currentSession.session_id}&student_id=${studentId}&type=${type}`, {
+          method: 'DELETE'
+        });
+
+        await loadCheckins();
+        updateUI();
+      };
+
+      // ===== Absence Reason Modal =====
+      window.openAbsenceModal = function (studentId, studentName) {
+        els.absenceStudentId.value = studentId;
+        els.absenceStudentName.textContent = `${studentName} (${studentId})`;
+
+        // Check if already has a reason
+        const existing = absences.find(a => a.student_id === studentId);
+        if (existing) {
+          els.absenceReasonInput.value = existing.reason;
+          els.btnDeleteReason.style.display = 'block';
+          els.btnDeleteReason.onclick = () => deleteAbsenceReason(studentId);
+        } else {
+          els.absenceReasonInput.value = '';
+          els.btnDeleteReason.style.display = 'none';
+        }
+
+        els.absenceModal.classList.add('active');
+        els.absenceReasonInput.focus();
+      };
+
+      window.closeAbsenceModal = function () {
+        els.absenceModal.classList.remove('active');
+        focusScan();
+      };
+
+      window.saveAbsenceReason = async function () {
+        const studentId = els.absenceStudentId.value;
+        const reason = els.absenceReasonInput.value.trim();
+
+        if (!reason) {
+          alert('Vui lòng nhập lý do vắng');
+          return;
+        }
+
+        await api('/api/absences', {
+          method: 'POST',
+          body: JSON.stringify({
+            session_id: currentSession.session_id,
+            student_id: studentId,
+            class_id: currentSession.class_id,
+            reason: reason
+          })
+        });
+
+        closeAbsenceModal();
+        await loadAbsences();
+        updateUI();
+
+        showOverlay('success', 'Đã lưu lý do vắng', reason);
+      };
+
+      window.deleteAbsenceReason = async function (studentId) {
+        if (!confirm('Xóa lý do vắng này?')) return;
+
+        await api(`/api/absences?session_id=${currentSession.session_id}&student_id=${studentId}`, {
+          method: 'DELETE'
+        });
+
+        closeAbsenceModal();
+        await loadAbsences();
+        updateUI();
+      };
+
+      // ===== Bonus Logic =====
+      window.openBonusModal = function (studentId, studentName, checkType, currentPoints, currentReason) {
+        els.bonusStudentId.value = studentId;
+        els.bonusCheckType.value = checkType;
+        document.getElementById('bonusStudentName').textContent = `${studentName} (${studentId})`;
+
+        els.bonusPointsInput.value = currentPoints || 0;
+        els.bonusReasonInput.value = currentReason || '';
+
+        document.getElementById('bonusModal').classList.add('active');
+        els.bonusReasonInput.focus();
+      };
+
+      window.closeBonusModal = function () {
+        document.getElementById('bonusModal').classList.remove('active');
+        focusScan();
+      };
+
+      window.adjustBonus = function (delta) {
+        const val = parseInt(els.bonusPointsInput.value) || 0;
+        els.bonusPointsInput.value = val + delta;
+      };
+
+      window.saveBonus = async function () {
+        const studentId = els.bonusStudentId.value;
+        const checkType = els.bonusCheckType.value;
+        const points = parseInt(els.bonusPointsInput.value) || 0;
+        const reason = els.bonusReasonInput.value.trim();
+
+        await api('/api/checkins/bonus', {
+          method: 'POST',
+          body: JSON.stringify({
+            session_id: currentSession.session_id,
+            student_id: studentId,
+            check_type: checkType,
+            bonus_points: points,
+            bonus_reason: reason
+          })
+        });
+
+        closeBonusModal();
+        await loadCheckins();
+        updateUI();
+        if (points !== 0 || reason) {
+          showOverlay('success', 'Đã cập nhật', `${points} điểm - ${reason}`);
+        }
+      };
+
+      // ===== Export =====
+      async function exportExcel() {
+        if (!currentSession) return;
+
+        const logs = await api(`/api/logs?session_id=${currentSession.session_id}`) || [];
+        const date = currentSession.session_date;
+
+        const checkMap = new Map();
+        for (const c of checkins) {
+          if (!checkMap.has(c.student_id)) {
+            checkMap.set(c.student_id, { checkIn: '', checkOut: '' });
+          }
+          if (c.check_type === 'in') {
+            checkMap.get(c.student_id).checkIn = c.check_time;
+            checkMap.get(c.student_id).bonusPoints = c.bonus_points;
+            checkMap.get(c.student_id).bonusReason = c.bonus_reason;
+          }
+          if (c.check_type === 'out') checkMap.get(c.student_id).checkOut = c.check_time;
+        }
+
+        const diemDanh = students.map(s => {
+          const row = {
+            'Lớp': currentSession.class_id,
+            'Ngày': date,
+            'Buổi': currentSession.session_number,
+            'Tiết': `${currentSession.start_period}-${currentSession.end_period}`,
+          };
+          if (isConference) {
+            row['Mã GV/SV'] = s.student_id;
+            row['Họ tên'] = s.full_name;
+            row['Vai trò'] = s.is_lecturer ? 'Giảng viên' : 'Sinh viên';
+          } else {
+            row['MSSV'] = s.student_id;
+            row['Họ tên'] = s.full_name;
+          }
+          row[isConference ? 'Điểm danh' : 'Vào lớp'] = checkMap.get(s.student_id)?.checkIn || '';
+          row['Điểm cộng'] = checkMap.get(s.student_id)?.bonusPoints || 0;
+          row['Lý do/Ghi chú'] = checkMap.get(s.student_id)?.bonusReason || '';
+          row['Ra về'] = checkMap.get(s.student_id)?.checkOut || '';
+          row['Lý do vắng'] = (!checkMap.has(s.student_id) && absences.find(a => a.student_id === s.student_id)?.reason) || '';
+          row['Trạng thái'] = checkMap.has(s.student_id) ? 'Có mặt' : 'Vắng';
+          return row;
+        });
+
+        const wb = XLSX.utils.book_new();
+        const ws1 = XLSX.utils.json_to_sheet(diemDanh);
+        const ws2 = XLSX.utils.json_to_sheet(logs);
+        XLSX.utils.book_append_sheet(wb, ws1, 'DiemDanh');
+        XLSX.utils.book_append_sheet(wb, ws2, 'Log');
+
+        const fname = `diem_danh_${currentSession.class_id}_buoi${currentSession.session_number}.xlsx`;
+        XLSX.writeFile(wb, fname);
+
+        showOverlay('success', 'Đã xuất Excel', fname);
+      }
+
+      // ===== Google Sheet Sync =====
+      async function syncGoogleSheet() {
+        if (!currentSession) {
+          showOverlay('error', 'Chưa mở buổi học', 'Vui lòng chọn buổi học để đồng bộ');
+          return;
+        }
+
+        const btnSync = document.getElementById('btnSyncGoogleSheet');
+        const origText = btnSync ? btnSync.innerHTML : '';
+        if (btnSync) {
+          btnSync.disabled = true;
+          btnSync.innerHTML = '⏳ Đang đồng bộ...';
+        }
+
+        try {
+          // Nếu lớp chưa khai báo Google Sheet URL
+          if (!currentSession.google_sheet_url) {
+            const inputUrl = prompt(
+              '📊 Lớp học này chưa khai báo Google Sheet.\n\n' +
+              'Vui lòng dán link Google Sheet (https://docs.google.com/spreadsheets/d/.../edit) vào bên dưới:'
+            );
+            if (!inputUrl || !inputUrl.trim()) {
+              if (btnSync) {
+                btnSync.disabled = false;
+                btnSync.innerHTML = origText;
+              }
+              focusScan();
+              return;
+            }
+
+            // Lưu URL Google Sheet vào thông tin lớp học
+            const updateRes = await api(`/api/classes/${encodeURIComponent(currentSession.class_id)}`, {
+              method: 'PUT',
+              body: JSON.stringify({
+                google_sheet_url: inputUrl.trim()
+              })
+            });
+
+            if (updateRes && updateRes.success) {
+              currentSession.google_sheet_url = inputUrl.trim();
+            }
+          }
+
+          showOverlay('warning', 'Đang đồng bộ...', 'Đang gửi dữ liệu điểm danh sang Google Sheet');
+
+          const res = await api(`/api/sessions/${currentSession.session_id}/sync_google_sheet`, {
+            method: 'POST'
+          });
+
+          if (res && res.success) {
+            showOverlay('success', 'Đã đồng bộ Google Sheet ✓', res.message || `Đã cập nhật ${res.count || 0} sinh viên`);
+            speak('Đã đồng bộ Google Sheet thành công');
+          } else {
+            showOverlay('error', 'Đồng bộ thất bại', res?.error || 'Không kết nối được Google Sheet');
+            alert('Lỗi đồng bộ Google Sheets:\n' + (res?.error || 'Vui lòng kiểm tra lại URL Webhook Apps Script'));
+          }
+        } catch (err) {
+          showOverlay('error', 'Lỗi kết nối', err.message);
+        } finally {
+          if (btnSync) {
+            btnSync.disabled = false;
+            btnSync.innerHTML = origText;
+          }
+          focusScan();
+        }
+      }
+
+      // ===== Random Student Picker Integration =====
+      let randomPickerInstance = null;
+
+      function initRandomPicker() {
+        randomPickerInstance = new RandomPicker({
+          container: '#randomPickerContainer',
+          modalOverlay: '#randomPickerModal',
+          isModal: true,
+          title: 'GỌI TÊN NGẪU NHIÊN',
+          onBonus: (student) => {
+            const sId = student.maSV;
+            const sName = student.fullName;
+            const c = checkins.find(chk => chk.student_id === sId && chk.check_type === 'in');
+            const curPoints = c ? (c.bonus_points || 0) : 0;
+            const curReason = c ? (c.bonus_reason || '') : '';
+            openBonusModal(sId, sName, 'in', curPoints + 1, curReason ? `${curReason}, Phát biểu` : 'Phát biểu tốt');
+          },
+          onClose: () => {
+            focusScan();
+          }
+        });
+      }
+
+      function openRandomPicker() {
+        if (!randomPickerInstance) {
+          initRandomPicker();
+        }
+
+        const checkedIn = checkins.filter(c => c.check_type === 'in').map(c => ({
+          maSV: c.student_id,
+          fullName: c.name || c.student_id,
+          photoUrl: c.photo_path ? `/photos/${c.photo_path}` : ''
+        }));
+
+        const all = students.map(s => ({
+          maSV: s.student_id,
+          fullName: s.full_name || s.student_id,
+          photoUrl: s.photo_path ? `/photos/${s.photo_path}` : ''
+        }));
+
+        const title = currentSession 
+          ? `${currentSession.class_name || currentSession.class_id} (Buổi ${currentSession.session_number})`
+          : 'Điểm danh';
+
+        randomPickerInstance.open({
+          title,
+          checkedIn,
+          all
+        });
+      }
+
+      // ===== Utilities =====
+      function nowStr() {
+        return new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+      }
+
+      function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>"']/g, m => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[m]));
+      }
+
+      let overlayTimer = null;
+      function showOverlay(type, title, sub, photoUrl) {
+        clearTimeout(overlayTimer);
+        els.ovTitle.className = `overlay-title ${type}`;
+        els.ovTitle.textContent = title;
+        els.ovSub.textContent = sub || '';
+
+        // Show photo if provided
+        if (photoUrl) {
+          els.ovPhoto.src = photoUrl;
+          els.ovPhoto.classList.add('visible');
+          els.ovPhoto.onerror = () => els.ovPhoto.classList.remove('visible');
+        } else {
+          els.ovPhoto.classList.remove('visible');
+        }
+
+        els.overlay.classList.add('active');
+        overlayTimer = setTimeout(() => els.overlay.classList.remove('active'), 4000);
+      }
+
+      function speak(text) {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const u = new SpeechSynthesisUtterance(text);
+          u.lang = 'vi-VN';
+          u.rate = 1;
+          window.speechSynthesis.speak(u);
+        }
+      }
+
+      // ===== Start =====
+      init();
+    })();
+  </script>
+</body>
+
+</html>

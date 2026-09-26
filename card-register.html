@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Đăng ký UID Thẻ Sinh Viên</title>
+    <style>
+        :root {
+            --bg-primary: #0b1220;
+            --bg-secondary: #0f172a;
+            --bg-card: #1e293b;
+            --text-primary: #e5e7eb;
+            --text-muted: #94a3b8;
+            --accent: #2563eb;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        header {
+            background: var(--bg-secondary);
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .header-right {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-success {
+            background: var(--success);
+            border-color: var(--success);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .btn-sm {
+            padding: 6px 10px;
+            font-size: 12px;
+        }
+
+        main {
+            padding: 24px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 16px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        select,
+        input {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        select:focus,
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .uid-input-container {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .uid-input-container .form-group {
+            flex: 2;
+        }
+
+        #uidInput {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 2px;
+        }
+
+        .selected-student-info {
+            background: rgba(37, 99, 235, 0.1);
+            border: 1px solid rgba(37, 99, 235, 0.3);
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .selected-student-info.active {
+            display: block;
+        }
+
+        .selected-student-info .name {
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .selected-student-info .id {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: var(--bg-card);
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text-muted);
+            position: sticky;
+            top: 0;
+            cursor: pointer;
+        }
+
+        th:hover {
+            color: var(--accent);
+        }
+
+        tr {
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        tr.selected {
+            background: rgba(37, 99, 235, 0.15);
+        }
+
+        tr.selected td {
+            border-color: rgba(37, 99, 235, 0.3);
+        }
+
+        .table-container {
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge.registered {
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--success);
+        }
+
+        .status-badge.pending {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+
+        .uid-display {
+            font-family: monospace;
+            font-size: 12px;
+            color: var(--text-muted);
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 6px;
+        }
+
+        /* Toast */
+        #toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 16px 20px;
+            border-radius: 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            display: none;
+            z-index: 1000;
+            max-width: 400px;
+        }
+
+        #toast.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        #toast.success {
+            border-left: 4px solid var(--success);
+        }
+
+        #toast.error {
+            border-left: 4px solid var(--danger);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+            width: min(450px, 90vw);
+        }
+
+        .modal h3 {
+            margin-bottom: 16px;
+        }
+
+        .modal p {
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .stats {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .stat {
+            padding: 12px 16px;
+            background: var(--bg-card);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .stat.success .stat-value {
+            color: var(--success);
+        }
+
+        .stat.warning .stat-value {
+            color: var(--warning);
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>💳 Đăng ký UID Thẻ Sinh Viên</h1>
+        <div class="header-right">
+            <a href="random-picker.html" class="btn">🎲 Gọi ngẫu nhiên</a>
+            <a href="index.html" class="btn">⚙️ Quản lý</a>
+            <a href="scan.html" class="btn">📟 Điểm danh</a>
+        </div>
+    </header>
+
+    <main>
+        <!-- Class Selection -->
+        <div class="card">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Chọn lớp</label>
+                    <select id="classSelect">
+                        <option value="">-- Chọn lớp --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Chọn buổi (để check-in luôn)</label>
+                    <select id="sessionSelect" disabled>
+                        <option value="">-- Chỉ đăng ký (không check-in) --</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- UID Input -->
+        <div class="card" id="uidCard" style="display: none;">
+            <div class="card-header">
+                <div class="card-title">Quét thẻ sinh viên</div>
+            </div>
+
+            <div class="selected-student-info" id="selectedInfo">
+                <div class="name" id="selectedName">-</div>
+                <div class="id" id="selectedId">MSSV: -</div>
+            </div>
+
+            <div class="uid-input-container">
+                <div class="form-group">
+                    <label>UID từ thẻ (quét hoặc nhập thủ công)</label>
+                    <input type="text" id="uidInput" placeholder="Chọn sinh viên rồi quét thẻ..." disabled>
+                </div>
+                <button class="btn btn-primary" id="btnSaveUid" disabled>💾 Lưu UID</button>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats" id="statsContainer" style="display: none;">
+            <div class="stat success">
+                <div class="stat-value" id="statRegistered">0</div>
+                <div class="stat-label">Đã đăng ký</div>
+            </div>
+            <div class="stat warning">
+                <div class="stat-value" id="statPending">0</div>
+                <div class="stat-label">Chưa đăng ký</div>
+            </div>
+        </div>
+
+        <!-- Student List -->
+        <div class="card" id="studentCard" style="display: none;">
+            <div class="card-header">
+                <div class="card-title">Danh sách sinh viên</div>
+                <button class="btn btn-sm btn-primary" onclick="syncAllUids()">🔄 Đồng bộ tất cả</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>STT</th>
+                            <th>Họ</th>
+                            <th>Tên</th>
+                            <th>MSSV</th>
+                            <th>Trạng thái</th>
+                            <th>Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentList"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast -->
+    <div id="toast"></div>
+
+    <!-- Transfer Modal -->
+    <div class="modal-overlay" id="transferModal">
+        <div class="modal">
+            <h3>⚠️ UID đã được đăng ký</h3>
+            <p id="transferMessage">UID này đã được đăng ký cho sinh viên khác. Bạn có muốn chuyển sang sinh viên mới
+                không?</p>
+            <div class="modal-buttons">
+                <button class="btn" onclick="closeTransferModal()">Hủy</button>
+                <button class="btn btn-primary" id="btnConfirmTransfer">Xác nhận chuyển</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let classes = [];
+        let students = [];
+        let selectedStudent = null;
+        let currentClassId = '';
+        let pendingTransfer = null;
+
+        // DOM elements
+        const classSelect = document.getElementById('classSelect');
+        const sessionSelect = document.getElementById('sessionSelect');
+        const studentList = document.getElementById('studentList');
+        const uidInput = document.getElementById('uidInput');
+        const btnSaveUid = document.getElementById('btnSaveUid');
+        const selectedInfo = document.getElementById('selectedInfo');
+        const selectedName = document.getElementById('selectedName');
+        const selectedId = document.getElementById('selectedId');
+        const uidCard = document.getElementById('uidCard');
+        const studentCard = document.getElementById('studentCard');
+        const statsContainer = document.getElementById('statsContainer');
+        const transferModal = document.getElementById('transferModal');
+
+        // Load classes on init
+        async function loadClasses() {
+            try {
+                const res = await fetch('/api/classes');
+                classes = await res.json();
+                classSelect.innerHTML = '<option value="">-- Chọn lớp --</option>';
+                classes.forEach(c => {
+                    classSelect.innerHTML += `<option value="${c.class_id}">${c.class_name} (${c.class_id})</option>`;
+                });
+            } catch (err) {
+                showToast('Lỗi tải danh sách lớp', 'error');
+            }
+        }
+
+        // Load sessions
+        async function loadSessions(classId) {
+            sessionSelect.innerHTML = '<option value="">-- Chỉ đăng ký (không check-in) --</option>';
+            sessionSelect.disabled = true;
+
+            if (!classId) return;
+
+            try {
+                const res = await fetch(`/api/sessions?class_id=${encodeURIComponent(classId)}`);
+                const sessions = await res.json();
+
+                // Find currently open session to auto-select
+                const resCurrent = await fetch('/api/sessions/current');
+                const currentSession = await resCurrent.json();
+                const currentSessionId = (currentSession && currentSession.class_id === classId) ? currentSession.session_id : null;
+
+                sessions.forEach(s => {
+                    const isSelected = s.session_id === currentSessionId ? 'selected' : '';
+                    const label = `Buổi ${s.session_number} (${s.session_date})`;
+                    sessionSelect.innerHTML += `<option value="${s.session_id}" ${isSelected}>${label}</option>`;
+                });
+
+                sessionSelect.disabled = false;
+            } catch (err) {
+                console.error('Error loading sessions', err);
+            }
+        }
+
+        // Load students
+        async function loadStudents(classId) {
+            if (!classId) {
+                students = [];
+                renderStudents();
+                uidCard.style.display = 'none';
+                studentCard.style.display = 'none';
+                statsContainer.style.display = 'none';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/students?class_id=${encodeURIComponent(classId)}`);
+                students = await res.json();
+
+                // Sort by first_name, then last_name, then student_id
+                students.sort((a, b) => {
+                    const fn = (a.first_name || '').localeCompare(b.first_name || '', 'vi');
+                    if (fn !== 0) return fn;
+                    const ln = (a.last_name || '').localeCompare(b.last_name || '', 'vi');
+                    if (ln !== 0) return ln;
+                    return (a.student_id || '').localeCompare(b.student_id || '');
+                });
+
+                renderStudents();
+                updateStats();
+                uidCard.style.display = 'block';
+                studentCard.style.display = 'block';
+                statsContainer.style.display = 'flex';
+            } catch (err) {
+                showToast('Lỗi tải danh sách sinh viên', 'error');
+            }
+        }
+
+        // Render students
+        function renderStudents() {
+            studentList.innerHTML = '';
+            students.forEach((s, idx) => {
+                const hasUid = s.card_uid && s.card_uid.trim();
+                const isSelected = selectedStudent && selectedStudent.student_id === s.student_id;
+
+                const tr = document.createElement('tr');
+                tr.className = isSelected ? 'selected' : '';
+                tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td>${s.last_name || ''}</td>
+          <td>${s.first_name || ''}</td>
+          <td>${s.student_id}</td>
+          <td>
+            <span class="status-badge ${hasUid ? 'registered' : 'pending'}">
+              ${hasUid ? '✅ Đã đăng ký' : '⏳ Chưa đăng ký'}
+            </span>
+          </td>
+          <td>
+            <div class="action-buttons">
+              ${hasUid ? `
+                <button class="btn btn-sm" onclick="event.stopPropagation(); deleteUid('${s.student_id}')" title="Xóa UID">🗑️</button>
+                <button class="btn btn-sm" onclick="event.stopPropagation(); syncUid('${s.student_id}')" title="Đồng bộ UID sang các lớp khác">🔄</button>
+              ` : ''}
+            </div>
+          </td>
+        `;
+                tr.onclick = () => selectStudent(s);
+                studentList.appendChild(tr);
+            });
+        }
+
+        // Update stats
+        function updateStats() {
+            const registered = students.filter(s => s.card_uid && s.card_uid.trim()).length;
+            const pending = students.length - registered;
+            document.getElementById('statRegistered').textContent = registered;
+            document.getElementById('statPending').textContent = pending;
+        }
+
+        // Select student
+        function selectStudent(student) {
+            selectedStudent = student;
+            selectedInfo.classList.add('active');
+            selectedName.textContent = student.full_name || `${student.last_name} ${student.first_name}`;
+            selectedId.textContent = `MSSV: ${student.student_id}`;
+            uidInput.disabled = false;
+            uidInput.value = student.card_uid || '';
+            uidInput.focus();
+            btnSaveUid.disabled = false;
+            renderStudents();
+        }
+
+        // Save UID
+        async function saveUid() {
+            if (!selectedStudent || !uidInput.value.trim()) {
+                showToast('Vui lòng chọn sinh viên và nhập UID', 'error');
+                return;
+            }
+
+            const cardUid = uidInput.value.trim();
+            const sessionId = sessionSelect.value; // Get selected session
+
+            try {
+                const res = await fetch(`/api/students/${encodeURIComponent(selectedStudent.student_id)}/card`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        class_id: currentClassId,
+                        card_uid: cardUid,
+                        session_id: sessionId // Send session ID for auto check-in
+                    })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    let msg = `✅ Đã lưu UID cho ${selectedStudent.full_name || selectedStudent.student_id}`;
+                    if (sessionId) msg += ' và điểm danh thành công!';
+                    showToast(msg, 'success');
+
+                    // Update local state
+                    const idx = students.findIndex(s => s.student_id === selectedStudent.student_id);
+                    if (idx >= 0) {
+                        students[idx].card_uid = cardUid;
+                    }
+                    renderStudents();
+                    updateStats();
+                    // Move to next unregistered student
+                    selectNextUnregistered();
+                } else if (data.error === 'uid_exists') {
+                    // Show transfer modal
+                    pendingTransfer = {
+                        cardUid: cardUid,
+                        existingStudentId: data.existing_student_id,
+                        existingClassId: data.existing_class_id,
+                        existingName: data.existing_name,
+                        existingRegisteredAt: data.existing_registered_at // Capture timestamp for transfer
+                    };
+                    document.getElementById('transferMessage').textContent =
+                        `UID "${cardUid}" đã được đăng ký cho sinh viên ${data.existing_name} (${data.existing_student_id}) trong lớp ${data.existing_class_id}. Bạn có muốn chuyển sang ${selectedStudent.full_name || selectedStudent.student_id} không?`;
+                    transferModal.classList.add('active');
+                } else {
+                    showToast(data.error || 'Lỗi lưu UID', 'error');
+                }
+            } catch (err) {
+                showToast('Lỗi kết nối server', 'error');
+            }
+        }
+
+        // Confirm transfer
+        async function confirmTransfer() {
+            if (!pendingTransfer || !selectedStudent) return;
+
+            const sessionId = sessionSelect.value;
+
+            try {
+                // First, delete from existing student
+                await fetch(`/api/students/${encodeURIComponent(pendingTransfer.existingStudentId)}/card?class_id=${encodeURIComponent(pendingTransfer.existingClassId)}`, {
+                    method: 'DELETE'
+                });
+
+                // Then save to new student
+                const res = await fetch(`/api/students/${encodeURIComponent(selectedStudent.student_id)}/card`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        class_id: currentClassId,
+                        card_uid: pendingTransfer.cardUid,
+                        session_id: sessionId,
+                        card_registered_at: pendingTransfer.existingRegisteredAt // Preserve timestamp
+                    })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`✅ Đã chuyển UID sang ${selectedStudent.full_name || selectedStudent.student_id}`, 'success');
+                    await loadStudents(currentClassId);
+                }
+            } catch (err) {
+                showToast('Lỗi chuyển UID', 'error');
+            }
+
+            closeTransferModal();
+        }
+
+        function closeTransferModal() {
+            transferModal.classList.remove('active');
+            pendingTransfer = null;
+        }
+
+        // Delete UID
+        async function deleteUid(studentId) {
+            if (!confirm('Xác nhận xóa UID thẻ của sinh viên này?')) return;
+
+            try {
+                const res = await fetch(`/api/students/${encodeURIComponent(studentId)}/card?class_id=${encodeURIComponent(currentClassId)}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    showToast('✅ Đã xóa UID', 'success');
+                    const idx = students.findIndex(s => s.student_id === studentId);
+                    if (idx >= 0) {
+                        students[idx].card_uid = null;
+                    }
+                    renderStudents();
+                    updateStats();
+                }
+            } catch (err) {
+                showToast('Lỗi xóa UID', 'error');
+            }
+        }
+
+        // Sync UID
+        async function syncUid(studentId) {
+            try {
+                const res = await fetch(`/api/students/${encodeURIComponent(studentId)}/card/sync`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ class_id: currentClassId })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`✅ Đã đồng bộ UID sang ${data.synced_count} lớp khác`, 'success');
+                } else {
+                    showToast(data.error || 'Lỗi đồng bộ', 'error');
+                }
+            } catch (err) {
+                showToast('Lỗi đồng bộ UID', 'error');
+            }
+        }
+
+        // Sync All UIDs
+        async function syncAllUids() {
+            if (!confirm('Bạn có chắc chắn muốn đồng bộ UID cho tất cả sinh viên? Việc này sẽ lấy UID từ lần đăng ký mới nhất áp dụng cho tất cả các lớp.')) return;
+
+            try {
+                const res = await fetch('/api/students/card/sync-all', {
+                    method: 'POST'
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`✅ Đã đồng bộ ${data.synced_students} sinh viên (${data.updated_records} bản ghi)`, 'success');
+                } else {
+                    showToast(data.error || 'Lỗi đồng bộ', 'error');
+                }
+            } catch (err) {
+                showToast('Lỗi kết nối server', 'error');
+            }
+        }
+
+        // Select next unregistered student
+        function selectNextUnregistered() {
+            const currentIdx = selectedStudent ? students.findIndex(s => s.student_id === selectedStudent.student_id) : -1;
+            for (let i = currentIdx + 1; i < students.length; i++) {
+                if (!students[i].card_uid || !students[i].card_uid.trim()) {
+                    selectStudent(students[i]);
+                    return;
+                }
+            }
+            // If no more unregistered after current, check from beginning
+            for (let i = 0; i < currentIdx; i++) {
+                if (!students[i].card_uid || !students[i].card_uid.trim()) {
+                    selectStudent(students[i]);
+                    return;
+                }
+            }
+            // All registered
+            showToast('🎉 Tất cả sinh viên đã đăng ký thẻ!', 'success');
+        }
+
+        // Toast
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'show ' + type;
+            setTimeout(() => toast.className = '', 3000);
+        }
+
+        // Event listeners
+        classSelect.addEventListener('change', (e) => {
+            currentClassId = e.target.value;
+            selectedStudent = null;
+            selectedInfo.classList.remove('active');
+            uidInput.value = '';
+            uidInput.disabled = true;
+            btnSaveUid.disabled = true;
+            loadStudents(currentClassId);
+            loadSessions(currentClassId); // Load sessions for the selected class
+        });
+
+        btnSaveUid.addEventListener('click', saveUid);
+
+        uidInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                saveUid();
+            }
+        });
+
+        document.getElementById('btnConfirmTransfer').addEventListener('click', confirmTransfer);
+
+        // Init
+        loadClasses();
+    </script>
+</body>
+
+</html>

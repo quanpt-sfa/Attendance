@@ -1,0 +1,15 @@
+﻿# Secrets & Credentials
+key.json
+google_token.json
+config.json
+
+# Database & Cache
+*.db
+__pycache__/
+*.pyc
+
+# Local Data & Photos
+*.xlsx
+*.csv
+photos/
+attendance.db

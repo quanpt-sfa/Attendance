@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Xóa Cache - Điểm danh</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0b1220 0%, #1e293b 100%);
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            color: #e5e7eb;
+        }
+
+        .box {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            max-width: 500px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+        }
+
+        .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin: 0 0 10px;
+            font-size: 24px;
+        }
+
+        p {
+            margin: 0 0 20px;
+            opacity: 0.8;
+            line-height: 1.6;
+        }
+
+        .status {
+            padding: 12px 20px;
+            background: rgba(37, 99, 235, 0.2);
+            border-radius: 10px;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+
+        .success {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .error {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 14px 28px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            cursor: pointer;
+            text-decoration: none;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            background: #1d4ed8;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="box">
+        <div class="icon" id="icon">🔄</div>
+        <h1 id="title">Đang xóa cache...</h1>
+        <p id="desc">Vui lòng chờ trong giây lát</p>
+        <div class="spinner" id="spinner"></div>
+        <div class="status" id="status">Đang kiểm tra Service Worker...</div>
+        <a href="index.html" class="btn hidden" id="goBtn">👉 Mở trang Điểm danh</a>
+    </div>
+
+    <script>
+        const icon = document.getElementById('icon');
+        const title = document.getElementById('title');
+        const desc = document.getElementById('desc');
+        const spinner = document.getElementById('spinner');
+        const status = document.getElementById('status');
+        const goBtn = document.getElementById('goBtn');
+
+        async function clearAllCache() {
+            const steps = [];
+
+            // Step 1: Unregister Service Workers
+            status.textContent = '1/3 - Xóa Service Workers...';
+            try {
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    if (registrations.length > 0) {
+                        for (const reg of registrations) {
+                            await reg.unregister();
+                        }
+                        steps.push(`✅ Đã xóa ${registrations.length} Service Worker`);
+                    } else {
+                        steps.push('ℹ️ Không có Service Worker nào');
+                    }
+                } else {
+                    steps.push('ℹ️ Trình duyệt không hỗ trợ Service Worker');
+                }
+            } catch (e) {
+                steps.push('⚠️ Lỗi khi xóa Service Worker: ' + e.message);
+            }
+
+            // Step 2: Clear Cache Storage
+            status.textContent = '2/3 - Xóa Cache Storage...';
+            await new Promise(r => setTimeout(r, 500));
+            try {
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    if (cacheNames.length > 0) {
+                        await Promise.all(cacheNames.map(name => caches.delete(name)));
+                        steps.push(`✅ Đã xóa ${cacheNames.length} cache: ${cacheNames.join(', ')}`);
+                    } else {
+                        steps.push('ℹ️ Không có cache nào');
+                    }
+                } else {
+                    steps.push('ℹ️ Trình duyệt không hỗ trợ Cache API');
+                }
+            } catch (e) {
+                steps.push('⚠️ Lỗi khi xóa cache: ' + e.message);
+            }
+
+            // Step 3: Done
+            status.textContent = '3/3 - Hoàn tất!';
+            await new Promise(r => setTimeout(r, 500));
+
+            // Show success
+            icon.textContent = '✅';
+            title.textContent = 'Đã xóa cache thành công!';
+            desc.innerHTML = steps.join('<br>');
+            spinner.classList.add('hidden');
+            status.classList.add('success');
+            status.textContent = 'Bấm nút bên dưới để mở trang Điểm danh với giao diện mới';
+            goBtn.classList.remove('hidden');
+        }
+
+        // Auto run
+        clearAllCache().catch(err => {
+            icon.textContent = '❌';
+            title.textContent = 'Có lỗi xảy ra';
+            desc.textContent = err.message;
+            spinner.classList.add('hidden');
+            status.classList.add('error');
+            status.textContent = 'Vui lòng thử lại hoặc xóa cache thủ công';
+            goBtn.classList.remove('hidden');
+        });
+    </script>
+</body>
+
+</html>

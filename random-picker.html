@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎃 Gọi Tên Ngẫu Nhiên - Quản lý lớp học</title>
+    <!-- Google Fonts for horror & race themes -->
+    <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Nosifer&family=Eater&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="random-picker.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0b1220;
+        }
+    </style>
+</head>
+
+<body class="rp-standalone-body">
+    <!-- Top Navigation Bar -->
+    <div class="rp-topbar">
+        <div class="rp-nav-btns">
+            <a href="index.html" class="rp-topbar-btn">⬅ Quản lý lớp học</a>
+            <a href="scan.html" class="rp-topbar-btn">📟 Màn hình điểm danh</a>
+        </div>
+        <div style="font-size: 13px; color: #94a3b8;">
+            Hệ thống Quản lý lớp học & Điểm danh
+        </div>
+    </div>
+
+    <!-- Random Picker Container -->
+    <div id="randomPickerApp" style="width: 100%; display: flex; justify-content: center;"></div>
+
+    <!-- SheetJS (Local library) -->
+    <script src="./libs/xlsx.full.min.js"></script>
+    <script src="random-picker.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const picker = new RandomPicker({
+                container: '#randomPickerApp',
+                isModal: false,
+                title: 'GỌI TÊN NGẪU NHIÊN',
+                subtitle: 'Chọn lớp học từ cơ sở dữ liệu hoặc tải file Excel để bắt đầu'
+            });
+
+            // Show class selector and upload section for standalone page
+            const classSelectBox = document.getElementById('rpClassSelectBox');
+            const classSelect = document.getElementById('rpClassSelect');
+            const uploadSection = document.getElementById('rpUploadSection');
+            
+            if (classSelectBox) classSelectBox.style.display = 'flex';
+            if (uploadSection) uploadSection.style.display = 'block';
+
+            // Load classes from API
+            try {
+                const res = await fetch('/api/classes');
+                const classes = await res.json();
+                if (Array.isArray(classes) && classes.length > 0) {
+                    classes.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.class_id;
+                        opt.textContent = `${c.class_name || c.class_id} (${c.class_id})`;
+                        classSelect.appendChild(opt);
+                    });
+
+                    // Check URL parameter for default class
+                    const params = new URLSearchParams(window.location.search);
+                    const classIdParam = params.get('class_id') || params.get('class');
+                    if (classIdParam) {
+                        classSelect.value = classIdParam;
+                        picker.loadClassFromAPI(classIdParam);
+                    }
+                }
+            } catch (e) {
+                console.error('Error fetching classes:', e);
+            }
+        });
+    </script>
+</body>
+
+</html>

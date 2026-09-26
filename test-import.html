@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Test XLSX Import</title>
+    <script src="./libs/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        pre {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+
+        .error {
+            color: #dc2626;
+        }
+
+        .success {
+            color: #16a34a;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🔍 Test XLSX/CSV Import</h1>
+        <p>Chọn file Excel hoặc CSV để kiểm tra cấu trúc:</p>
+
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+        <button onclick="testFile()">Kiểm tra file</button>
+
+        <h2>Kết quả:</h2>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        async function testFile() {
+            const output = document.getElementById('output');
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                output.innerHTML = '<p class="error">❌ Chưa chọn file!</p>';
+                return;
+            }
+
+            output.innerHTML = '<p>⏳ Đang đọc file...</p>';
+
+            try {
+                const buf = await file.arrayBuffer();
+                const wb = XLSX.read(buf, { type: 'array' });
+
+                let html = '<h3 class="success">✅ Đọc file thành công!</h3>';
+                html += `<p><strong>Tên file:</strong> ${file.name}</p>`;
+                html += `<p><strong>Kích thước:</strong> ${(file.size / 1024).toFixed(2)} KB</p>`;
+                html += `<p><strong>Số sheet:</strong> ${wb.SheetNames.length}</p>`;
+                html += `<p><strong>Tên các sheet:</strong> ${wb.SheetNames.join(', ')}</p>`;
+
+                // Read first sheet
+                const sheetName = wb.SheetNames[0];
+                const ws = wb.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+                html += `<h3>📊 Sheet đầu tiên: "${sheetName}"</h3>`;
+                html += `<p><strong>Số dòng dữ liệu:</strong> ${json.length}</p>`;
+
+                if (json.length > 0) {
+                    const headers = Object.keys(json[0]);
+                    html += `<p><strong>Các cột tìm thấy:</strong></p>`;
+                    html += `<pre>${JSON.stringify(headers, null, 2)}</pre>`;
+
+                    html += `<p><strong>Dữ liệu mẫu (3 dòng đầu):</strong></p>`;
+                    html += `<pre>${JSON.stringify(json.slice(0, 3), null, 2)}</pre>`;
+
+                    // Check for required columns
+                    const normalize = (s) => (s ?? '').toString().trim().toLowerCase().replace(/\s+/g, '');
+                    const normalizedHeaders = headers.map(h => normalize(h));
+
+                    const hasID = normalizedHeaders.some(h =>
+                        h.includes('mssv') || h.includes('masv') || h.includes('studentid') || h === 'id'
+                    );
+                    const hasName = normalizedHeaders.some(h =>
+                        h.includes('hoten') || h.includes('name') || h.includes('ten')
+                    );
+
+                    html += '<h3>🔍 Kiểm tra cột:</h3>';
+                    html += `<p>Có cột MSSV/ID: ${hasID ? '<span class="success">✅ Có</span>' : '<span class="error">❌ Không</span>'}</p>`;
+                    html += `<p>Có cột Họ tên/Name: ${hasName ? '<span class="success">✅ Có</span>' : '<span class="error">❌ Không</span>'}</p>`;
+
+                    if (!hasID || !hasName) {
+                        html += '<p class="error"><strong>⚠️ Lưu ý:</strong> File cần có ít nhất 2 cột: MSSV (hoặc ID) và Họ tên (hoặc Name)</p>';
+                    } else {
+                        html += '<p class="success"><strong>✅ File hợp lệ!</strong> Có thể import vào hệ thống điểm danh.</p>';
+                    }
+                } else {
+                    html += '<p class="error">❌ Sheet rỗng, không có dữ liệu!</p>';
+                }
+
+                output.innerHTML = html;
+
+            } catch (err) {
+                output.innerHTML = `
+          <h3 class="error">❌ Lỗi khi đọc file!</h3>
+          <p><strong>Thông báo lỗi:</strong></p>
+          <pre class="error">${err.message}</pre>
+          <p><strong>Chi tiết lỗi:</strong></p>
+          <pre class="error">${err.stack || err.toString()}</pre>
+          <h3>💡 Gợi ý:</h3>
+          <ul>
+            <li>Đảm bảo file là định dạng .xlsx, .xls hoặc .csv</li>
+            <li>Thử mở file trong Excel và lưu lại</li>
+            <li>Kiểm tra file có bị hỏng không</li>
+            <li>File có thể bị mã hóa hoặc có mật khẩu</li>
+          </ul>
+        `;
+                console.error('Error details:', err);
+            }
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,3111 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Quản lý Điểm danh</title>
+    <style>
+        :root {
+            --bg-primary: #0b1220;
+            --bg-secondary: #0f172a;
+            --bg-card: #1e293b;
+            --text-primary: #e5e7eb;
+            --text-muted: #94a3b8;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --border: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Layout */
+        .layout {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 240px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            padding: 20px 0;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            /* Sticky position */
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 10px;
+        }
+
+        .sidebar-header h1 {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 20px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--accent);
+            border-left-color: var(--accent);
+        }
+
+        .nav-item .icon {
+            font-size: 18px;
+        }
+
+        /* Main Content */
+        .main {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .btn.primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn.success {
+            background: var(--success);
+            border-color: var(--success);
+        }
+
+        .btn.danger {
+            background: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .btn.small {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .form-row.cols-3 {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .form-row.cols-2 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        @media (max-width: 600px) {
+            .form-row.cols-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+        }
+
+        /* Table */
+        .table-container {
+            overflow-x: auto;
+            max-height: calc(100vh - 180px);
+            /* Adjust based on header height */
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            white-space: nowrap;
+            /* Sticky header */
+            position: sticky;
+            top: 0;
+            background: var(--bg-secondary);
+            z-index: 10;
+            cursor: pointer;
+            /* Pointer for sorting */
+            user-select: none;
+        }
+
+        th:hover {
+            color: var(--accent);
+        }
+
+        .nowrap {
+            white-space: nowrap;
+        }
+
+        td.actions-cell,
+        td:last-child {
+            white-space: nowrap;
+        }
+
+        th .sort-icon {
+            display: inline-block;
+            margin-left: 5px;
+            font-size: 10px;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Status badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge.success {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success);
+        }
+
+        .badge.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+        }
+
+        .badge.danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+        }
+
+        .badge.info {
+            background: rgba(37, 99, 235, 0.15);
+            color: var(--accent);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+            width: min(580px, 94vw);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        /* Photo */
+        .photo-preview {
+            width: 80px;
+            height: 80px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+        }
+
+        .photo-upload {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 16px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 14px;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        /* Hidden */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -240px;
+                z-index: 100;
+                height: 100vh;
+                transition: left 0.3s;
+            }
+
+            .sidebar.open {
+                left: 0;
+            }
+
+            .main {
+                padding: 16px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-card);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Loading */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 2000;
+        }
+
+        .toast {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 20px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.success {
+            border-left: 4px solid var(--success);
+        }
+
+        .toast.error {
+            border-left: 4px solid var(--danger);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Class selector in students page */
+        .class-selector {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .class-selector select {
+            min-width: 220px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>📚 Điểm danh</h1>
+            </div>
+            <nav>
+                <div class="nav-item active" data-page="classes">
+                    <span class="icon">🏫</span>
+                    <span>Lớp học</span>
+                </div>
+                <div class="nav-item" data-page="students">
+                    <span class="icon">👨‍🎓</span>
+                    <span>Sinh viên</span>
+                </div>
+                <div class="nav-item" data-page="sessions">
+                    <span class="icon">📅</span>
+                    <span>Buổi học</span>
+                </div>
+                <a href="card-register.html" class="nav-item" style="text-decoration:none;color:inherit;">
+                    <span class="icon">💳</span>
+                    <span>Đăng ký thẻ</span>
+                </a>
+                <a href="random-picker.html" class="nav-item" style="text-decoration:none;color:inherit;">
+                    <span class="icon">🎲</span>
+                    <span>Gọi ngẫu nhiên</span>
+                </a>
+            </nav>
+            <div style="margin-top:auto; padding:16px 14px; border-top:1px solid var(--border);" id="googleAuthSidebarWidget">
+                <div id="googleAuthLoading" style="font-size:12px; color:var(--text-muted); text-align:center;">⏳ Đang kiểm tra Google...</div>
+                
+                <div id="googleAuthNotConnected" class="hidden">
+                    <button type="button" class="btn small" style="width:100%; background:#2563eb; color:white; justify-content:center; gap:8px;" onclick="connectGoogleAccount()">
+                        <svg width="15" height="15" viewBox="0 0 24 24"><path fill="#fff" d="M21.35 11.1h-9.17v2.98h5.27c-.23 1.25-.94 2.31-2 3.01v2.5h3.24c1.9-1.75 2.99-4.32 2.99-7.4c0-.71-.06-1.4-.33-2.09z"/><path fill="#fff" d="M12.18 22c2.7 0 4.96-.9 6.62-2.41l-3.24-2.5c-.9.6-2.05.96-3.38.96-2.6 0-4.81-1.76-5.6-4.12H3.22v2.58C4.88 19.8 8.27 22 12.18 22z"/><path fill="#fff" d="M6.58 13.93c-.2-.6-.31-1.25-.31-1.93s.11-1.33.31-1.93V7.49H3.22C2.55 8.83 2.18 10.36 2.18 12s.37 3.17 1.04 4.51l3.36-2.58z"/><path fill="#fff" d="M12.18 5.94c1.47 0 2.79.51 3.83 1.5l2.87-2.87C17.13 2.97 14.88 2 12.18 2 8.27 2 4.88 4.2 3.22 7.49l3.36 2.58c.79-2.36 3-4.13 5.6-4.13z"/></svg>
+                        <span>Kết nối Google Sheets</span>
+                    </button>
+                    <div style="font-size:11px; color:var(--text-muted); margin-top:6px; text-align:center;">Dùng tài khoản Google để tạo Sheet</div>
+                </div>
+
+                <div id="googleAuthConnected" class="hidden" style="background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.3); border-radius:10px; padding:10px;">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                        <img id="googleUserAvatar" src="" style="width:26px; height:26px; border-radius:50%; display:none;">
+                        <div style="overflow:hidden; flex:1;">
+                            <div id="googleUserName" style="font-size:12px; font-weight:600; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">Google Account</div>
+                            <div id="googleUserEmail" style="font-size:11px; color:#4ade80; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;"></div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn small danger" style="width:100%; padding:2px 8px; font-size:11px; justify-content:center;" onclick="logoutGoogleAccount()">Đăng xuất Google</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Page: Classes -->
+            <div id="page-classes" class="page">
+                <div class="page-header">
+                    <h2 class="page-title">Quản lý Lớp học</h2>
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <div id="headerGoogleAuthBtn"></div>
+                        <button class="btn" onclick="prepareImportClass()">
+                            📥 Import Excel
+                        </button>
+                        <button class="btn primary" onclick="showClassModal()">
+                            <span>➕</span> Thêm lớp mới
+                        </button>
+                        <input type="file" id="importClassFile" accept=".xlsx,.xls" class="hidden"
+                            onchange="importClassListFromExcel(event)">
+                    </div>
+                </div>
+
+                <div style="background:rgba(37,99,235,0.06); border:1px solid rgba(59,130,246,0.25); border-radius:12px; padding:10px 14px; margin-bottom:16px; font-size:13px; display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:16px;">💡</span>
+                    <span><b>Mỗi lớp học liên kết 1 file Google Sheet riêng biệt.</b> Khi điểm danh từng buổi, hệ thống sẽ tự động cập nhật kết quả của buổi đó vào đúng Sheet của lớp. Bạn có thể bấm <b>"Dán link Sheet"</b> hoặc <b>"Tạo Sheet"</b> trực tiếp trên từng lớp bên dưới.</span>
+                </div>
+
+                <div class="card">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th width="50" onclick="sortData('classes', 'stt')">STT</th>
+                                    <th onclick="sortData('classes', 'class_id')">Mã lớp</th>
+                                    <th onclick="sortData('classes', 'credit_class_id')">Lớp học phần / Tên lớp</th>
+                                    <th onclick="sortData('classes', 'room')">Phòng</th>
+                                    <th onclick="sortData('classes', 'start_date')">Ngày BĐ</th>
+                                    <th onclick="sortData('classes', 'day_of_week')">Thứ</th>
+                                    <th onclick="sortData('classes', 'num_sessions')">Số buổi</th>
+                                    <th onclick="sortData('classes', 'session_interval')">Khoảng cách</th>
+                                    <th onclick="sortData('classes', 'default_start_period')">Tiết</th>
+                                    <th>📊 Google Sheets (Link riêng của lớp)</th>
+                                    <th>Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody id="classesTable">
+                                <tr>
+                                    <td colspan="11" class="empty-state">
+                                        <div class="icon">📭</div>
+                                        <p>Chưa có lớp học nào</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page: Students -->
+            <div id="page-students" class="page hidden">
+                <div class="page-header">
+                    <h2 class="page-title">Quản lý Sinh viên</h2>
+                </div>
+
+                <div class="class-selector">
+                    <label style="margin:0">Chọn lớp:</label>
+                    <select id="studentClassSelect" onchange="loadStudents()" style="width: 200px;">
+                        <option value="">-- Chọn lớp --</option>
+                    </select>
+
+                    <!-- Stats Container -->
+                    <span id="studentStats"
+                        style="margin-left: 15px; font-weight: 500; color: var(--text-muted); font-size: 0.9em;"></span>
+
+                    <button class="btn danger" onclick="deleteAllStudentsInClass()" style="margin-left: auto;">
+                        🗑️ Xóa hết SV
+                    </button>
+                    <button class="btn" onclick="prepareImportStudents()">
+                        📥 Import Excel
+                    </button>
+                    <button class="btn primary" onclick="showStudentModal()">
+                        ➕ Thêm SV
+                    </button>
+                    <input type="file" id="importFile" accept=".xlsx,.xls" class="hidden"
+                        onchange="importStudents(event)">
+                </div>
+
+                <div class="card">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th width="50" onclick="sortData('students', 'stt')">STT</th>
+                                    <th>Ảnh</th>
+                                    <th onclick="sortData('students', 'student_id')">MSSV</th>
+                                    <th onclick="sortData('students', 'last_name')">Họ</th>
+                                    <th onclick="sortData('students', 'first_name')">Tên</th>
+                                    <th onclick="sortData('students', 'email')">Email</th>
+                                    <th onclick="sortData('students', 'birth_date')">Ngày sinh</th>
+                                    <th onclick="sortData('students', 'gender')">Giới tính</th>
+                                    <th>Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody id="studentsTable">
+                                <tr>
+                                    <td colspan="7" class="empty-state">
+                                        <div class="icon">👨‍🎓</div>
+                                        <p>Chọn lớp để xem danh sách sinh viên</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page: Sessions -->
+            <div id="page-sessions" class="page hidden">
+                <div class="page-header">
+                    <h2 class="page-title">Quản lý Buổi học</h2>
+                    <button class="btn primary" onclick="openEmailTemplateModal()">
+                        📧 Cấu hình Email
+                    </button>
+                </div>
+
+                <div class="class-selector" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <label style="margin:0">Chọn lớp:</label>
+                        <select id="sessionClassSelect" onchange="loadSessions()">
+                            <option value="">-- Chọn lớp --</option>
+                        </select>
+                    </div>
+                    <div id="sessionGoogleSheetBar" style="display:none; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <button type="button" class="btn small" style="background:#0f9d58; color:white; border-color:#0b8043;" onclick="syncCurrentClassSessions()" title="Kiểm tra các buổi chưa có trên Sheet và đồng bộ tất cả">
+                            ⚡ Đồng bộ tất cả buổi lên Google Sheet
+                        </button>
+                        <a id="sessionOpenSheetBtn" href="#" target="_blank" class="btn small" style="background:rgba(255,255,255,0.06); text-decoration:none;">
+                            📊 Mở Google Sheet ↗
+                        </a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th width="50" onclick="sortData('sessions', 'stt')">STT</th>
+                                    <th onclick="sortData('sessions', 'session_number')">Buổi</th>
+                                    <th onclick="sortData('sessions', 'session_date')">Ngày học</th>
+                                    <th onclick="sortData('sessions', 'start_period')">Tiết</th>
+                                    <th onclick="sortData('sessions', 'is_open')">Trạng thái</th>
+                                    <th onclick="sortData('sessions', 'checkin_count')">Điểm danh</th>
+                                    <th>Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sessionsTable">
+                                <tr>
+                                    <td colspan="7" class="empty-state">
+                                        <div class="icon">📅</div>
+                                        <p>Chọn lớp để xem danh sách buổi học</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal: Add/Edit Class -->
+    <div class="modal-overlay" id="classModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="classModalTitle">Thêm lớp học</h3>
+                <button class="modal-close" onclick="closeModal('classModal')">&times;</button>
+            </div>
+            <form id="classForm" onsubmit="saveClass(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mã lớp (Điểm danh) *</label>
+                        <input type="text" id="classId" required placeholder="VD: IT001.M1">
+                    </div>
+                    <div class="form-group">
+                        <label>Mã LHP</label>
+                        <input type="text" id="creditClassId" placeholder="VD: IT001">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Tên lớp *</label>
+                        <input type="text" id="className" required placeholder="VD: Lập trình Web">
+                    </div>
+                </div>
+                <div class="form-row" style="grid-template-columns: 2fr 1fr; align-items: flex-end;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Phòng học</label>
+                        <input type="text" id="classRoom" placeholder="VD: C301">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0; padding-bottom:12px;">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;white-space:nowrap;">
+                            <input type="checkbox" id="isConference" style="width:auto;cursor:pointer;" onchange="toggleConferenceFields()">
+                            🎤 Hội thảo
+                        </label>
+                    </div>
+                </div>
+                <div id="classSessionFields">
+                    <div class="form-row" style="margin-top:16px;">
+                        <div class="form-group">
+                            <label>Ngày bắt đầu</label>
+                            <input type="date" id="startDate">
+                        </div>
+                        <div class="form-group">
+                            <label>Số buổi học</label>
+                            <input type="number" id="numSessions" value="10" min="1" max="50">
+                        </div>
+                    </div>
+                    <div class="form-row cols-3">
+                        <div class="form-group">
+                            <label>Khoảng cách (ngày)</label>
+                            <input type="number" id="sessionInterval" value="7" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Tiết bắt đầu</label>
+                            <input type="number" id="startPeriod" value="1" min="1" max="15">
+                        </div>
+                        <div class="form-group">
+                            <label>Tiết kết thúc</label>
+                            <input type="number" id="endPeriod" value="3" min="1" max="15">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top:16px; padding:14px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:8px;">
+                        <span style="font-weight:600; font-size:13.5px; display:flex; align-items:center; gap:6px;">
+                            📊 Google Sheets
+                        </span>
+                        <button type="button" class="btn small" style="padding:2px 8px; font-size:11px; background:rgba(37,99,235,0.15); border-color:#3b82f6; color:#93c5fd;" onclick="openGoogleSheetGuideModal()">
+                            ℹ️ Hướng dẫn
+                        </button>
+                    </div>
+
+                    <!-- Status Google Account inside Modal -->
+                    <div id="modalGoogleAuthStatus" style="margin-bottom:12px; padding:8px 12px; border-radius:8px; background:rgba(255,255,255,0.04); border:1px solid var(--border); font-size:12px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+                    </div>
+
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <input type="text" id="googleSheetUrl" placeholder="Dán link Google Sheet hoặc Webhook Apps Script" style="flex:1; min-width:200px;">
+                        <div style="display:flex; gap:6px; flex-shrink:0;">
+                            <button type="button" class="btn small" id="btnAutoCreateSheet" style="white-space:nowrap; padding:0 12px; background:rgba(34,197,94,0.15); border-color:#22c55e; color:#4ade80;" onclick="autoCreateGoogleSheetForClass()">
+                                ✨ Tự tạo Sheet
+                            </button>
+                            <button type="button" class="btn small" style="white-space:nowrap; padding:0 12px;" onclick="testGoogleSheetConnection()">
+                                🔍 Kiểm tra
+                            </button>
+                        </div>
+                    </div>
+                    <small style="color:var(--text-muted); font-size:11px; margin-top:6px; display:block;">
+                        Chỉ cần kết nối tài khoản Google để bấm "✨ Tự tạo Sheet", hoặc dán link Google Sheet bất kỳ.
+                    </small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeModal('classModal')">Hủy</button>
+                    <button type="submit" class="btn primary">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Quick Connect Google Sheet for a Class -->
+    <div class="modal-overlay" id="quickGoogleSheetModal">
+        <div class="modal" style="width: min(560px, 94vw);">
+            <div class="modal-header">
+                <h3 class="modal-title" id="quickGoogleSheetTitle">📊 Google Sheets cho lớp học</h3>
+                <button class="modal-close" onclick="closeModal('quickGoogleSheetModal')">&times;</button>
+            </div>
+            <div>
+                <input type="hidden" id="quickSheetClassId">
+                <div style="background:rgba(37,99,235,0.08); border:1px solid rgba(59,130,246,0.3); border-radius:10px; padding:12px; margin-bottom:16px; font-size:13px; line-height:1.5;">
+                    💡 <b>Mỗi lớp học bắt buộc có 1 file Google Sheet riêng biệt.</b><br>
+                    Hệ thống sẽ tự động kiểm tra tên lớp và dữ liệu trên Sheet trước khi đồng bộ để tuyệt đối không đổ chung hay ghi đè dữ liệu của các lớp khác nhau.
+                </div>
+
+                <div class="form-group">
+                    <label style="font-weight:600;">Link Google Sheet của lớp này:</label>
+                    <input type="text" id="quickSheetUrlInput" placeholder="Dán link https://docs.google.com/spreadsheets/d/.../edit vào đây" style="margin-bottom:8px;">
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                        <button type="button" class="btn small" style="background:rgba(34,197,94,0.15); border-color:#22c55e; color:#4ade80;" onclick="quickAutoCreateInModal()">
+                            ✨ Tự tạo Sheet mới cho lớp này
+                        </button>
+                        <button type="button" class="btn small" onclick="quickTestConnectionInModal()">
+                            🔍 Kiểm tra kết nối
+                        </button>
+                        <a id="quickSheetOpenLink" href="#" target="_blank" class="btn small hidden" style="background:rgba(255,255,255,0.06); text-decoration:none;">
+                            ↗️ Mở Sheet trên Google
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Trạng thái các buổi học trên Sheet & Nút đồng bộ -->
+                <div id="quickSheetSyncStatusBox" style="display:none; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px; margin-top:14px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-weight:600; font-size:13px;">📋 Trạng thái các buổi học trên Google Sheet:</span>
+                        <button type="button" class="btn small" style="padding:2px 8px; font-size:12px;" onclick="refreshQuickSheetStatus()">🔄 Kiểm tra lại</button>
+                    </div>
+                    <div id="quickSheetStatusContent" style="font-size:13px; color:#94a3b8; line-height:1.6;">
+                        Đang kiểm tra dữ liệu các buổi...
+                    </div>
+                    <div style="margin-top:10px;">
+                        <button type="button" class="btn primary small" id="quickSyncAllBtn" onclick="quickSyncAllSessionsFromModal()" style="width:100%; justify-content:center;">
+                            ⚡ Kiểm tra & Đồng bộ tất cả buổi học lên Google Sheet ngay
+                        </button>
+                    </div>
+                </div>
+
+                <div class="modal-footer" style="padding-top:14px; margin-top:14px; display:flex; justify-content:space-between; align-items:center;">
+                    <button type="button" class="btn danger small" id="quickSheetRemoveBtn" onclick="quickRemoveSheetLink()">
+                        🗑️ Hủy liên kết
+                    </button>
+                    <div style="display:flex; gap:8px;">
+                        <button type="button" class="btn" onclick="closeModal('quickGoogleSheetModal')">Đóng</button>
+                        <button type="button" class="btn primary" onclick="quickSaveGoogleSheetUrl()">Lưu liên kết</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Add/Edit Student -->
+    <div class="modal-overlay" id="studentModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="studentModalTitle">Thêm sinh viên</h3>
+                <button class="modal-close" onclick="closeModal('studentModal')">&times;</button>
+            </div>
+            <form id="studentForm" onsubmit="saveStudent(event)">
+                <input type="hidden" id="studentClassId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label id="studentIdLabel">MSSV *</label>
+                        <input type="text" id="studentId" required>
+                    </div>
+                    <div class="form-group hidden" id="isLecturerGroup">
+                        <label>Vai trò</label>
+                        <select id="isLecturer" style="width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
+                            <option value="0">👨‍🎓 Sinh viên</option>
+                            <option value="1">👨‍🏫 Giảng viên</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Họ</label>
+                        <input type="text" id="lastName">
+                    </div>
+                    <div class="form-group">
+                        <label>Tên</label>
+                        <input type="text" id="firstName">
+                    </div>
+                </div>
+                <div id="normalStudentFields">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="studentEmail" placeholder="email@example.com">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Ngày sinh</label>
+                        <input type="date" id="birthDate">
+                    </div>
+                    <div class="form-group">
+                        <label>Giới tính</label>
+                        <select id="gender">
+                            <option value="">-- Chọn --</option>
+                            <option value="Nam">Nam</option>
+                            <option value="Nữ">Nữ</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Ảnh đại diện</label>
+                    <div class="photo-upload">
+                        <img id="photoPreview" class="photo-preview" src="" alt="">
+                        <input type="file" id="photoInput" accept="image/*" onchange="previewPhoto(event)">
+                    </div>
+                </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeModal('studentModal')">Hủy</button>
+                    <button type="submit" class="btn primary">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Edit Session -->
+    <div class="modal-overlay" id="sessionModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Chỉnh sửa buổi học</h3>
+                <button class="modal-close" onclick="closeModal('sessionModal')">&times;</button>
+            </div>
+            <form id="sessionForm" onsubmit="saveSession(event)">
+                <input type="hidden" id="editSessionId">
+                <div class="form-group">
+                    <label>Ngày học</label>
+                    <input type="date" id="editSessionDate">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Tiết bắt đầu</label>
+                        <input type="number" id="editStartPeriod" min="1" max="15">
+                    </div>
+                    <div class="form-group">
+                        <label>Tiết kết thúc</label>
+                        <input type="number" id="editEndPeriod" min="1" max="15">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeModal('sessionModal')">Hủy</button>
+                    <button type="submit" class="btn primary">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Transfer Student -->
+    <div class="modal-overlay" id="transferModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Chuyển lớp sinh viên</h3>
+                <button class="modal-close" onclick="closeModal('transferModal')">&times;</button>
+            </div>
+            <div class="form-group">
+                <label>Sinh viên:</label>
+                <div id="transferStudentInfo" style="font-weight: 600; color: var(--accent); margin-bottom: 10px;">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Lớp hiện tại:</label>
+                <div id="transferCurrentClass" style="color: var(--text-muted); margin-bottom: 10px;"></div>
+            </div>
+            <div class="form-group">
+                <label>Chuyển đến lớp:</label>
+                <select id="transferTargetClass">
+                    <option value="">-- Chọn lớp đích --</option>
+                </select>
+            </div>
+            <input type="hidden" id="transferStudentId">
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="closeModal('transferModal')">Hủy</button>
+                <button type="button" class="btn primary" onclick="confirmTransfer()">Chuyển lớp</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Email Template -->
+    <div class="modal-overlay" id="emailTemplateModal">
+        <div class="modal" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Cấu hình mẫu Email</h3>
+                <button class="modal-close" onclick="closeModal('emailTemplateModal')">&times;</button>
+            </div>
+            <form id="emailTemplateForm" onsubmit="saveEmailTemplate(event)">
+                <div class="form-group">
+                    <label>Tiêu đề Email</label>
+                    <input type="text" id="emailSubject" required placeholder="Subject">
+                    <small style="color: grey;">Mẫu: {{class_id}}, {{session_number}}</small>
+                </div>
+                <div class="form-group">
+                    <label>Nội dung Email (HTML)</label>
+                    <textarea id="emailBody" rows="15"
+                        style="width:100%; padding:10px; border:1px solid var(--border); border-radius:5px; font-family:monospace;"
+                        required placeholder="Content..."></textarea>
+                    <div style="font-size: 0.85em; color: #666; margin-top: 5px; line-height: 1.5;">
+                        <b>Danh sách biến có thể sử dụng:</b><br>
+                        <code>{{full_name}}</code>: Họ tên SV<br>
+                        <code>{{student_id}}</code>: MSSV<br>
+                        <code>{{class_name}}</code>: Tên lớp<br>
+                        <code>{{class_id}}</code>: Mã lớp<br>
+                        <code>{{session_date}}</code>: Ngày học<br>
+                        <code>{{session_number}}</code>: Số buổi<br>
+                        <code>{{status}}</code>: Trạng thái (CÓ MẶT/VẮNG MẶT)<br>
+                        <code>{{details}}</code>: Chi tiết (Giờ vào/Lý do vắng - HTML)<br>
+                        <code>{{check_time}}</code>: Giờ vào<br>
+                        <code>{{bonus}}</code>: Điểm cộng<br>
+                        <code>{{note}}</code>: Ghi chú
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeModal('emailTemplateModal')">Hủy</button>
+                    <button type="submit" class="btn primary">Lưu cấu hình</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Google Sheet Guide -->
+    <div class="modal-overlay" id="googleSheetGuideModal">
+        <div class="modal" style="max-width: 680px;">
+            <div class="modal-header">
+                <h3 class="modal-title">📊 Hướng dẫn kết nối Google Sheets (3 bước)</h3>
+                <button class="modal-close" onclick="closeModal('googleSheetGuideModal')">&times;</button>
+            </div>
+            <div style="font-size:13.5px; line-height:1.6; color:var(--text-primary); max-height:70vh; overflow-y:auto; padding-right:8px;">
+                <p style="margin-bottom:12px;">Chỉ cần 3 bước đơn giản (khoảng 1 phút) để Google Sheet tự động nhận kết quả điểm danh mỗi buổi:</p>
+                
+                <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:12px;">
+                    <strong style="color:var(--accent);">Bước 1: Mở Google Sheet</strong>
+                    <p style="margin:4px 0 0; color:var(--text-muted); font-size:13px;">Tạo hoặc mở Google Sheet của lớp. Trên thanh menu, chọn: <b>Tiện ích mở rộng (Extensions)</b> &gt; <b>Apps Script</b>.</p>
+                </div>
+
+                <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <strong style="color:var(--accent);">Bước 2: Dán mã Google Apps Script</strong>
+                        <button type="button" class="btn small success" id="btnCopyAppsScript" onclick="copyAppsScriptCode()">📋 Sao chép mã Apps Script</button>
+                    </div>
+                    <p style="margin:0 0 8px; color:var(--text-muted); font-size:13px;">Xóa hết mã cũ trong trình soạn thảo, dán toàn bộ đoạn mã bên dưới vào:</p>
+                    <textarea id="appsScriptCodeArea" readonly style="width:100%; height:120px; font-family:monospace; font-size:11px; background:var(--bg-primary); color:#93c5fd; border:1px solid var(--border); border-radius:8px; padding:8px;"></textarea>
+                </div>
+
+                <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:16px;">
+                    <strong style="color:var(--accent);">Bước 3: Triển khai (Deploy) làm Ứng dụng Web</strong>
+                    <ol style="margin:6px 0 0 18px; color:var(--text-muted); font-size:13px;">
+                        <li>Nhấn nút <b>Triển khai (Deploy)</b> ở góc trên bên phải &gt; chọn <b>Tùy chọn triển khai mới (New deployment)</b>.</li>
+                        <li>Chọn loại: <b>Ứng dụng web (Web app)</b> (biểu tượng bánh răng).</li>
+                        <li>Mục <i>Ai có quyền truy cập (Who has access)</i>: CHỌN <b>Bất kỳ ai (Anyone)</b>.</li>
+                        <li>Nhấn <b>Triển khai (Deploy)</b> &gt; Cấp quyền truy cập nếu Google hỏi.</li>
+                        <li>Copy <b>URL ứng dụng web</b> (đuôi <code>/exec</code>) dán vào ô Google Sheets của lớp học!</li>
+                    </ol>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn primary" onclick="closeModal('googleSheetGuideModal')">Đã hiểu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- SheetJS for Excel -->
+    <script src="./libs/xlsx.full.min.js"></script>
+
+    <script>
+        // ===== State =====
+        let currentPage = 'classes';
+        let classes = [];
+        let currentStudents = [];
+        let currentSessions = [];
+        let selectedClassId = '';
+        let sortState = {
+            dataSource: null,
+            column: null,
+            asc: true
+        };
+
+        // Sorting
+        function sortData(dataSource, column) {
+            let data = [];
+            if (dataSource === 'classes') data = classes;
+            if (dataSource === 'students') data = currentStudents;
+            if (dataSource === 'sessions') data = currentSessions;
+
+            if (!data || data.length === 0) return;
+
+            // Update sort state
+            if (sortState.dataSource === dataSource && sortState.column === column) {
+                sortState.asc = !sortState.asc;
+            } else {
+                sortState.dataSource = dataSource;
+                sortState.column = column;
+                sortState.asc = true;
+            }
+
+            if (column === 'stt') {
+                // Reset sort (default order logic could be implemented here)
+                sortState.column = null;
+                // Ideally we'd re-fetch or keep original order. 
+                // Simple hack: reverse if already default? No.
+                // Just do nothing or re-sort by ID?
+                // Let's assume ID sort.
+                column = (dataSource === 'classes') ? 'class_id' :
+                    (dataSource === 'students') ? 'student_id' : 'session_number';
+            }
+
+            data.sort((a, b) => {
+                let valA = a[column];
+                let valB = b[column];
+
+                // Special sort for Derived Columns
+                if (column === 'day_of_week') {
+                    // Sort by Day Index (0-6). Note: getDay() 0 is Sunday. 
+                    // To sort Mon(1) -> Sun(0/7), we can map 0->7.
+                    const getDayIdx = (d) => {
+                        if (!d) return -1;
+                        const day = new Date(d).getDay();
+                        return day === 0 ? 7 : day; // Mon=1 ... Sun=7
+                    };
+                    valA = getDayIdx(a.start_date);
+                    valB = getDayIdx(b.start_date);
+                }
+
+                // Handle null/undefined
+                if (valA === null || valA === undefined) valA = '';
+                if (valB === null || valB === undefined) valB = '';
+
+                // String sorting (Vietnamese)
+                if (typeof valA === 'string' && typeof valB === 'string') {
+                    return sortState.asc
+                        ? valA.localeCompare(valB, 'vi')
+                        : valB.localeCompare(valA, 'vi');
+                }
+
+                // Numeric sorting
+                if (valA < valB) return sortState.asc ? -1 : 1;
+                if (valA > valB) return sortState.asc ? 1 : -1;
+                return 0;
+            });
+
+            // Re-render
+            if (dataSource === 'classes') renderClasses(data);
+            if (dataSource === 'students') renderStudents(data);
+            if (dataSource === 'sessions') renderSessions(data);
+
+            updateSortIcons(dataSource);
+        }
+
+        function updateSortIcons(dataSource) {
+            // Remove all icons
+            document.querySelectorAll(`#page-${dataSource} th .sort-icon`).forEach(el => el.remove());
+
+            // Add icon to active column
+            if (!sortState.column) return;
+
+            const headers = document.querySelectorAll(`#page-${dataSource} th`);
+            headers.forEach(th => {
+                if (th.getAttribute('onclick')?.includes(`'${sortState.column}'`)) {
+                    const icon = document.createElement('span');
+                    icon.className = 'sort-icon';
+                    icon.textContent = sortState.asc ? '▲' : '▼';
+                    th.appendChild(icon);
+                }
+            });
+        }
+
+        // ===== Conference Mode =====
+        function toggleConferenceFields() {
+            const isConf = document.getElementById('isConference').checked;
+            const sessionFields = document.getElementById('classSessionFields');
+            if (isConf) {
+                sessionFields.style.display = 'none';
+                document.getElementById('numSessions').value = 1;
+                document.getElementById('sessionInterval').value = 1;
+            } else {
+                sessionFields.style.display = '';
+            }
+        }
+
+        function isConferenceClass(classId) {
+            const cls = classes.find(c => c.class_id === classId);
+            return cls && cls.is_conference;
+        }
+
+        // ===== Navigation =====
+        document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+            item.addEventListener('click', () => {
+                const page = item.dataset.page;
+                showPage(page);
+            });
+        });
+
+        function showPage(page) {
+            currentPage = page;
+
+            // Update nav
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
+
+            // Show page
+            document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+            document.getElementById(`page-${page}`)?.classList.remove('hidden');
+
+            // Load data
+            if (page === 'classes') loadClasses();
+            if (page === 'students') loadClassOptions('studentClassSelect');
+            if (page === 'sessions') loadClassOptions('sessionClassSelect');
+        }
+
+        // ===== API Helpers =====
+        async function api(endpoint, options = {}) {
+            try {
+                const baseUrl = (window.location.protocol === 'file:' || !window.location.port) ? 'http://localhost:8000' : '';
+                const url = endpoint.startsWith('http') ? endpoint : baseUrl + endpoint;
+                const res = await fetch(url, {
+                    headers: { 'Content-Type': 'application/json' },
+                    ...options
+                });
+                return await res.json();
+            } catch (e) {
+                console.error('API Error:', e);
+                if (!options.silent) {
+                    showToast('Lỗi kết nối server', 'error');
+                }
+                return null;
+            }
+        }
+
+        // ===== Toast =====
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // ===== Modal =====
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        function showModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        // ===== Classes =====
+        async function loadClasses() {
+            classes = await api('/api/classes') || [];
+            renderClasses();
+        }
+
+        function renderClasses(data = classes) { // Optional param for sorted data
+            const tbody = document.getElementById('classesTable');
+            const displayData = data || classes;
+
+            if (displayData.length === 0) {
+                tbody.innerHTML = `
+          <tr><td colspan="11" class="empty-state">
+            <div class="icon">📭</div>
+            <p>Chưa có lớp học nào</p>
+          </td></tr>
+        `;
+                return;
+            }
+
+            tbody.innerHTML = displayData.map((c, index) => `
+        <tr>
+          <td class="nowrap">${index + 1}</td>
+          <td class="nowrap"><strong>${escapeHtml(c.class_id)}</strong>${c.is_conference ? ' <span class="badge info">🎤 HT</span>' : ''}</td>
+          <td>
+            <div style="font-weight:600; color:var(--accent)">${escapeHtml(c.credit_class_id || '')}</div>
+            <div style="font-size:0.85em; color:var(--text-muted)">${escapeHtml(c.class_name)}</div>
+          </td>
+          <td class="nowrap">${escapeHtml(c.room || '-')}</td>
+          <td class="nowrap">${c.start_date ? formatDate(c.start_date) : '-'}</td>
+          <td class="nowrap">${c.start_date ? getDayOfWeek(c.start_date) : '-'}</td>
+          <td class="nowrap">${c.num_sessions || '-'}</td>
+          <td class="nowrap">${c.session_interval || '-'}</td>
+          <td class="nowrap">${c.default_start_period || 1}-${c.default_end_period || 3}</td>
+          <td class="nowrap">
+            ${c.google_sheet_url ? `
+              <div style="display:flex; align-items:center; gap:6px;">
+                <a href="${escapeHtml(c.google_sheet_url)}" target="_blank" class="btn small" style="background:rgba(34,197,94,0.15); color:#4ade80; border-color:rgba(34,197,94,0.4); text-decoration:none; padding:4px 8px; font-size:11.5px; font-weight:600; display:inline-flex; align-items:center; gap:4px;" title="Mở bảng tính Google Sheet của lớp này">
+                  📊 Mở Sheet ↗
+                </a>
+                <button class="btn small" style="background:rgba(16,185,129,0.2); color:#34d399; border-color:#10b981; padding:4px 8px; font-size:11.5px; font-weight:600;" title="Kiểm tra & Đồng bộ tất cả buổi học lên Google Sheet" onclick='syncClassGoogleSheet(${JSON.stringify(c.class_id)})'>
+                  ⚡ Đồng bộ
+                </button>
+                <button class="btn small" style="padding:4px 8px; font-size:11.5px;" title="Cài đặt hoặc kiểm tra Google Sheet của lớp này" onclick='openQuickGoogleSheetModal(${JSON.stringify(c.class_id)})'>
+                  ⚙️
+                </button>
+              </div>
+            ` : `
+              <div style="display:flex; align-items:center; gap:6px;">
+                <button class="btn small" style="background:rgba(37,99,235,0.15); color:#93c5fd; border-color:#3b82f6; padding:4px 10px; font-size:11.5px; font-weight:600;" title="Nhập hoặc dán link Google Sheet cho lớp này" onclick='openQuickGoogleSheetModal(${JSON.stringify(c.class_id)})'>
+                  🔗 Dán link Sheet
+                </button>
+                <button class="btn small" style="background:rgba(34,197,94,0.15); color:#4ade80; border-color:#22c55e; padding:4px 10px; font-size:11.5px; font-weight:600;" title="Tự động tạo Google Sheet mới cho lớp này trên Google Drive" onclick='quickAutoCreateSheetForClass(${JSON.stringify(c.class_id)})'>
+                  ✨ Tạo Sheet
+                </button>
+              </div>
+            `}
+          </td>
+          <td class="nowrap actions-cell">
+            <div style="display:flex; gap:5px; align-items:center; flex-wrap:nowrap;">
+                <button class="btn small success" title="Điểm danh / Buổi học" onclick='viewSessions(${JSON.stringify(c.class_id)})'>📅</button>
+                ${c.google_sheet_url ? `<button class="btn small" style="background:#0f9d58; color:white; border-color:#0b8043;" title="Kiểm tra & Đồng bộ tất cả buổi học lên Google Sheet" onclick='syncClassGoogleSheet(${JSON.stringify(c.class_id)})'>⚡</button>` : ''}
+                <button class="btn small" title="Sửa thông tin lớp" onclick='editClass(${JSON.stringify(c.class_id)})'>✏️</button>
+                <button class="btn small danger" title="Xóa lớp" onclick='deleteClass(${JSON.stringify(c.class_id)})'>🗑️</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+        }
+
+        function getDayOfWeek(dateStr) {
+            if (!dateStr) return '';
+            const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+            const date = new Date(dateStr);
+            return days[date.getDay()];
+        }
+
+        function editClass(classId) {
+            const cls = classes.find(c => c.class_id === classId);
+            if (cls) {
+                showClassModal(cls);
+            }
+        }
+
+        function showClassModal(classData = null) {
+            document.getElementById('classModalTitle').textContent = classData ? 'Sửa lớp học' : 'Thêm lớp học';
+            document.getElementById('classId').value = classData?.class_id || '';
+            document.getElementById('creditClassId').value = classData?.credit_class_id || '';
+            document.getElementById('classId').disabled = !!classData;
+            document.getElementById('className').value = classData?.class_name || '';
+            document.getElementById('classRoom').value = classData?.room || '';
+            document.getElementById('startDate').value = classData?.start_date || '';
+            document.getElementById('numSessions').value = classData?.num_sessions || 10;
+            document.getElementById('sessionInterval').value = classData?.session_interval || 7;
+            document.getElementById('startPeriod').value = classData?.default_start_period || 1;
+            document.getElementById('endPeriod').value = classData?.default_end_period || 3;
+            document.getElementById('isConference').checked = !!classData?.is_conference;
+            document.getElementById('googleSheetUrl').value = classData?.google_sheet_url || '';
+            toggleConferenceFields();
+            updateAllGoogleAuthUI();
+            showModal('classModal');
+        }
+
+        async function saveClass(e) {
+            e.preventDefault();
+
+            const isEdit = document.getElementById('classId').disabled;
+            const classId = document.getElementById('classId').value.trim();
+
+            const data = {
+                class_id: classId,
+                credit_class_id: document.getElementById('creditClassId').value.trim(),
+                class_name: document.getElementById('className').value.trim(),
+                room: document.getElementById('classRoom').value.trim(),
+                start_date: document.getElementById('startDate').value,
+                num_sessions: parseInt(document.getElementById('numSessions').value) || 10,
+                session_interval: parseInt(document.getElementById('sessionInterval').value) || 7,
+                default_start_period: parseInt(document.getElementById('startPeriod').value) || 1,
+                default_end_period: parseInt(document.getElementById('endPeriod').value) || 3,
+                is_conference: document.getElementById('isConference').checked ? 1 : 0,
+                google_sheet_url: document.getElementById('googleSheetUrl').value.trim()
+            };
+
+            let result;
+            if (isEdit) {
+                result = await api(`/api/classes/${encodeURIComponent(classId)}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(data)
+                });
+            } else {
+                result = await api('/api/classes', {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+            }
+
+            if (result?.success) {
+                showToast(isEdit ? `Đã cập nhật lớp ${classId}` : `Đã tạo lớp ${data.class_id} với ${result.sessions_created} buổi học`);
+                closeModal('classModal');
+                loadClasses();
+            } else {
+                showToast(result?.error || 'Lỗi khi lưu', 'error');
+            }
+        }
+
+        // ===== Google Sheet Helper Functions =====
+        let cachedAppsScriptCode = '';
+        async function openGoogleSheetGuideModal() {
+            showModal('googleSheetGuideModal');
+            const area = document.getElementById('appsScriptCodeArea');
+            if (!cachedAppsScriptCode) {
+                try {
+                    const res = await fetch('google_sheets_script.js');
+                    if (res.ok) {
+                        cachedAppsScriptCode = await res.text();
+                    }
+                } catch (e) {
+                    console.error('Failed to load google_sheets_script.js', e);
+                }
+            }
+            if (cachedAppsScriptCode) {
+                area.value = cachedAppsScriptCode;
+            } else if (!area.value) {
+                area.value = `// Vui lòng mở file google_sheets_script.js trong thư mục phần mềm Attendance và sao chép toàn bộ nội dung dán vào Google Apps Script`;
+            }
+        }
+
+        function copyAppsScriptCode() {
+            const area = document.getElementById('appsScriptCodeArea');
+            if (!area.value) return;
+            const btn = document.getElementById('btnCopyAppsScript');
+            const orig = btn.innerHTML;
+
+            const copySuccess = () => {
+                btn.innerHTML = '✅ Đã sao chép!';
+                setTimeout(() => { btn.innerHTML = orig; }, 2500);
+                showToast('Đã sao chép mã Apps Script vào bộ nhớ tạm!');
+            };
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(area.value).then(copySuccess).catch(() => {
+                    area.select();
+                    document.execCommand('copy');
+                    copySuccess();
+                });
+            } else {
+                area.select();
+                document.execCommand('copy');
+                copySuccess();
+            }
+        }
+
+        // ===== Google OAuth & Sheets Helpers =====
+        let googleAuthState = {
+            configured: false,
+            loggedIn: false,
+            user: null
+        };
+
+        function updateAllGoogleAuthUI() {
+            const isConnected = googleAuthState.loggedIn && googleAuthState.user;
+            const user = googleAuthState.user || {};
+            const userName = user.name || 'Google Account';
+            const userEmail = user.email || '';
+            const userPic = user.picture || '';
+
+            // 1. Sidebar Widget
+            const notConnectedEl = document.getElementById('googleAuthNotConnected');
+            const connectedEl = document.getElementById('googleAuthConnected');
+            const loadingEl = document.getElementById('googleAuthLoading');
+
+            if (loadingEl) loadingEl.classList.add('hidden');
+
+            if (isConnected) {
+                if (notConnectedEl) notConnectedEl.classList.add('hidden');
+                if (connectedEl) {
+                    connectedEl.classList.remove('hidden');
+                    const nameEl = document.getElementById('googleUserName');
+                    const emailEl = document.getElementById('googleUserEmail');
+                    const avatarEl = document.getElementById('googleUserAvatar');
+                    if (nameEl) nameEl.textContent = userName;
+                    if (emailEl) emailEl.textContent = userEmail;
+                    if (avatarEl) {
+                        if (userPic) {
+                            avatarEl.src = userPic;
+                            avatarEl.style.display = 'block';
+                        } else {
+                            avatarEl.style.display = 'none';
+                        }
+                    }
+                }
+            } else {
+                if (connectedEl) connectedEl.classList.add('hidden');
+                if (notConnectedEl) notConnectedEl.classList.remove('hidden');
+            }
+
+            // 2. Class Modal Google Auth Section
+            const modalAuthEl = document.getElementById('modalGoogleAuthStatus');
+            if (modalAuthEl) {
+                if (isConnected) {
+                    modalAuthEl.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:14px;">🟢</span>
+                            <div>
+                                <span style="color:#4ade80; font-weight:600;">Đã kết nối:</span>
+                                <span style="color:var(--text-primary); font-weight:500;">${escapeHtml(userEmail || userName)}</span>
+                            </div>
+                        </div>
+                        <button type="button" class="btn small" style="padding:2px 8px; font-size:11px;" onclick="connectGoogleAccount()">Đổi tài khoản</button>
+                    `;
+                } else {
+                    modalAuthEl.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:6px; color:var(--text-muted);">
+                            <span>⚠️ Chưa kết nối tài khoản Google</span>
+                        </div>
+                        <button type="button" class="btn small primary" style="background:#2563eb; color:white; padding:4px 12px; font-size:12px; gap:6px; font-weight:600;" onclick="connectGoogleAccount()">
+                            <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#fff" d="M21.35 11.1h-9.17v2.98h5.27c-.23 1.25-.94 2.31-2 3.01v2.5h3.24c1.9-1.75 2.99-4.32 2.99-7.4c0-.71-.06-1.4-.33-2.09z"/><path fill="#fff" d="M12.18 22c2.7 0 4.96-.9 6.62-2.41l-3.24-2.5c-.9.6-2.05.96-3.38.96-2.6 0-4.81-1.76-5.6-4.12H3.22v2.58C4.88 19.8 8.27 22 12.18 22z"/><path fill="#fff" d="M6.58 13.93c-.2-.6-.31-1.25-.31-1.93s.11-1.33.31-1.93V7.49H3.22C2.55 8.83 2.18 10.36 2.18 12s.37 3.17 1.04 4.51l3.36-2.58z"/><path fill="#fff" d="M12.18 5.94c1.47 0 2.79.51 3.83 1.5l2.87-2.87C17.13 2.97 14.88 2 12.18 2 8.27 2 4.88 4.2 3.22 7.49l3.36 2.58c.79-2.36 3-4.13 5.6-4.13z"/></svg>
+                            <span>Kết nối Google Sheets</span>
+                        </button>
+                    `;
+                }
+            }
+
+            // 3. Header Quick Button
+            const headerBtn = document.getElementById('headerGoogleAuthBtn');
+            if (headerBtn) {
+                if (isConnected) {
+                    headerBtn.innerHTML = `
+                        <button type="button" class="btn small" style="background:rgba(34,197,94,0.12); border-color:rgba(34,197,94,0.4); color:#4ade80; display:inline-flex; align-items:center; gap:6px; cursor:pointer;" onclick="connectGoogleAccount()" title="Tài khoản Google đang kết nối: ${escapeHtml(userEmail)}">
+                            <span>🟢</span>
+                            <span style="max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(userEmail || userName)}</span>
+                        </button>
+                    `;
+                } else {
+                    headerBtn.innerHTML = `
+                        <button type="button" class="btn small" style="background:#2563eb; color:white; border-color:#1d4ed8; display:inline-flex; align-items:center; gap:6px;" onclick="connectGoogleAccount()" title="Bấm để kết nối tài khoản Google và đồng bộ Google Sheets">
+                            <svg width="13" height="13" viewBox="0 0 24 24"><path fill="#fff" d="M21.35 11.1h-9.17v2.98h5.27c-.23 1.25-.94 2.31-2 3.01v2.5h3.24c1.9-1.75 2.99-4.32 2.99-7.4c0-.71-.06-1.4-.33-2.09z"/><path fill="#fff" d="M12.18 22c2.7 0 4.96-.9 6.62-2.41l-3.24-2.5c-.9.6-2.05.96-3.38.96-2.6 0-4.81-1.76-5.6-4.12H3.22v2.58C4.88 19.8 8.27 22 12.18 22z"/><path fill="#fff" d="M6.58 13.93c-.2-.6-.31-1.25-.31-1.93s.11-1.33.31-1.93V7.49H3.22C2.55 8.83 2.18 10.36 2.18 12s.37 3.17 1.04 4.51l3.36-2.58z"/><path fill="#fff" d="M12.18 5.94c1.47 0 2.79.51 3.83 1.5l2.87-2.87C17.13 2.97 14.88 2 12.18 2 8.27 2 4.88 4.2 3.22 7.49l3.36 2.58c.79-2.36 3-4.13 5.6-4.13z"/></svg>
+                            <span>Kết nối Google Sheets</span>
+                        </button>
+                    `;
+                }
+            }
+        }
+
+        async function checkGoogleAuthStatus() {
+            try {
+                const res = await api('/api/auth/google/status', { silent: true });
+                if (res?.success) {
+                    googleAuthState.configured = res.configured;
+                    googleAuthState.loggedIn = res.logged_in;
+                    googleAuthState.user = res.user;
+                } else {
+                    googleAuthState.loggedIn = false;
+                }
+            } catch (e) {
+                console.error('Lỗi kiểm tra Google Auth:', e);
+                googleAuthState.loggedIn = false;
+            } finally {
+                const loadingEl = document.getElementById('googleAuthLoading');
+                if (loadingEl) loadingEl.classList.add('hidden');
+                updateAllGoogleAuthUI();
+            }
+        }
+
+        function connectGoogleAccount() {
+            const w = 550;
+            const h = 650;
+            const left = (screen.width / 2) - (w / 2);
+            const top = (screen.height / 2) - (h / 2);
+            const baseUrl = (window.location.protocol === 'file:' || !window.location.port) ? 'http://localhost:8000' : '';
+            window.open(baseUrl + '/api/auth/google/login', 'GoogleAuth', `width=${w},height=${h},top=${top},left=${left},scrollbars=yes`);
+        }
+
+        window.addEventListener('message', (e) => {
+            if (e.data && e.data.type === 'GOOGLE_AUTH_SUCCESS') {
+                checkGoogleAuthStatus();
+                showToast(`🎉 Đã kết nối tài khoản Google: ${e.data.email || ''}!`);
+            }
+        });
+
+        async function logoutGoogleAccount() {
+            if (!confirm('Bạn có chắc muốn đăng xuất tài khoản Google khỏi phần mềm?')) return;
+            const res = await api('/api/auth/google/logout', { method: 'POST' });
+            if (res?.success) {
+                showToast('Đã đăng xuất tài khoản Google');
+                checkGoogleAuthStatus();
+            }
+        }
+
+        async function autoCreateGoogleSheetForClass() {
+            if (!googleAuthState.loggedIn) {
+                showToast('Chưa kết nối tài khoản Google. Đang mở cửa sổ đăng nhập...', 'info');
+                connectGoogleAccount();
+                return;
+            }
+
+            const className = document.getElementById('className').value.trim();
+            const classId = document.getElementById('classId').value.trim();
+            const title = `Điểm danh - ${className || classId || 'Lớp mới'}`;
+
+            const btn = document.getElementById('btnAutoCreateSheet');
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Đang tạo...';
+
+            showToast('Đang tạo Google Sheet mới trên Google Drive của bạn...', 'info');
+
+            try {
+                const res = await api('/api/google/create_sheet', {
+                    method: 'POST',
+                    body: JSON.stringify({ title })
+                });
+
+                if (res?.success && res.data?.spreadsheet_url) {
+                    document.getElementById('googleSheetUrl').value = res.data.spreadsheet_url;
+                    showToast('🎉 Đã tạo Google Sheet thành công!');
+                } else {
+                    showToast('❌ ' + (res?.error || 'Không tạo được Google Sheet'), 'error');
+                }
+            } catch (err) {
+                showToast('Lỗi: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+
+        async function testGoogleSheetConnection() {
+            const url = document.getElementById('googleSheetUrl').value.trim();
+            if (!url) {
+                showToast('Vui lòng nhập link Google Sheet trước', 'error');
+                return;
+            }
+
+            // Hỗ trợ cả link Google Sheet thông thường và link Webhook Apps Script
+            if (!url.startsWith('https://script.google.com/') && !url.includes('docs.google.com/spreadsheets/d/')) {
+                showToast('Vui lòng dán link Google Sheet (docs.google.com/spreadsheets/d/...) hoặc URL Webhook Apps Script', 'error');
+                return;
+            }
+
+            showToast('Đang kiểm tra kết nối đến Google Sheet...', 'info');
+            try {
+                const res = await api('/api/google_sheet/test', {
+                    method: 'POST',
+                    body: JSON.stringify({ url })
+                });
+                if (res?.success) {
+                    showToast('🎉 ' + (res.message || 'Kết nối Google Sheet thành công!'));
+                } else {
+                    showToast('❌ ' + (res?.error || 'Không kết nối được đến Google Sheet'), 'error');
+                }
+            } catch (e) {
+                showToast('Lỗi kiểm tra kết nối: ' + e.message, 'error');
+            }
+        }
+
+        async function syncClassGoogleSheet(classId) {
+            showToast(`Đang kiểm tra và đồng bộ các buổi học cho lớp ${classId}...`, 'info');
+            try {
+                const res = await api(`/api/classes/${encodeURIComponent(classId)}/sync_google_sheet`, {
+                    method: 'POST'
+                });
+                if (res?.success) {
+                    showToast(`✅ ${res.message || 'Đồng bộ Google Sheet thành công!'}`);
+                    if (quickSheetCurrentClass && quickSheetCurrentClass.class_id === classId) {
+                        refreshQuickSheetStatus();
+                    }
+                } else {
+                    showToast(`❌ ${res?.error || 'Lỗi khi đồng bộ Google Sheet'}`, 'error');
+                }
+            } catch (e) {
+                showToast(`Lỗi: ${e.message}`, 'error');
+            }
+        }
+
+        // ===== Quick Google Sheet Modal Helpers =====
+        let quickSheetCurrentClass = null;
+
+        function openQuickGoogleSheetModal(classId) {
+            const cls = classes.find(c => c.class_id === classId);
+            if (!cls) return;
+            quickSheetCurrentClass = cls;
+
+            document.getElementById('quickSheetClassId').value = classId;
+            document.getElementById('quickGoogleSheetTitle').textContent = `📊 Google Sheets - Lớp ${cls.class_id} (${cls.class_name})`;
+            const urlInput = document.getElementById('quickSheetUrlInput');
+            urlInput.value = cls.google_sheet_url || '';
+
+            const openLink = document.getElementById('quickSheetOpenLink');
+            const removeBtn = document.getElementById('quickSheetRemoveBtn');
+            const statusBox = document.getElementById('quickSheetSyncStatusBox');
+            if (cls.google_sheet_url) {
+                openLink.href = cls.google_sheet_url;
+                openLink.classList.remove('hidden');
+                removeBtn.classList.remove('hidden');
+                if (statusBox) statusBox.style.display = 'block';
+                refreshQuickSheetStatus();
+            } else {
+                openLink.classList.add('hidden');
+                removeBtn.classList.add('hidden');
+                if (statusBox) statusBox.style.display = 'none';
+            }
+
+            showModal('quickGoogleSheetModal');
+        }
+
+        async function refreshQuickSheetStatus() {
+            if (!quickSheetCurrentClass) return;
+            const classId = quickSheetCurrentClass.class_id;
+            const box = document.getElementById('quickSheetSyncStatusBox');
+            const content = document.getElementById('quickSheetStatusContent');
+            const syncBtn = document.getElementById('quickSyncAllBtn');
+            if (!box || !content) return;
+
+            const url = document.getElementById('quickSheetUrlInput').value.trim();
+            if (!url) {
+                box.style.display = 'none';
+                return;
+            }
+
+            box.style.display = 'block';
+            content.innerHTML = '<span style="color:#94a3b8;">⏳ Đang kiểm tra các buổi học trên Google Sheet...</span>';
+
+            try {
+                const res = await api(`/api/classes/${encodeURIComponent(classId)}/google_sheet_status`);
+                if (res?.has_conflict) {
+                    if (syncBtn) syncBtn.style.display = 'none';
+                    content.innerHTML = `
+                        <div style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); border-radius:8px; padding:10px; color:#fca5a5; font-size:13px; line-height:1.5;">
+                            🚨 <b>CẢNH BÁO XUNG ĐỘT / SAI LỚP:</b><br>
+                            ${escapeHtml(res.conflict_message || 'File Sheet này đang thuộc về lớp khác!')}<br>
+                            <div style="margin-top:8px;">
+                                <button type="button" class="btn small" style="background:#22c55e; color:white; border-color:#16a34a;" onclick="quickAutoCreateInModal()">
+                                    ✨ Tạo ngay 1 file Google Sheet mới riêng cho lớp này
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                if (syncBtn) syncBtn.style.display = 'inline-flex';
+
+                if (res?.has_sheet) {
+                    const total = res.total_sessions || 0;
+                    const onSheet = res.on_sheet_count || 0;
+                    const missing = res.missing_count || 0;
+                    const missingList = (res.missing_sessions || []).map(n => `Buổi ${n}`).join(', ');
+                    const onSheetList = (res.on_sheet_sessions || []).map(n => `Buổi ${n}`).join(', ');
+
+                    let html = `<div style="display:flex; flex-direction:column; gap:5px;">`;
+                    if (res.sheet_title) {
+                        html += `<div>• File trên Google Drive: <strong style="color:var(--accent);">${escapeHtml(res.sheet_title)}</strong></div>`;
+                    }
+                    html += `<div>• Tổng số buổi học trong hệ thống: <b>${total} buổi</b></div>`;
+                    
+                    if (onSheet > 0) {
+                        html += `<div style="color:#22c55e;">• Đã có tab trên Sheet (${onSheet} buổi): <b>${onSheetList}</b></div>`;
+                    }
+                    if (missing > 0) {
+                        html += `<div style="color:#f59e0b; background:rgba(245,158,11,0.1); padding:4px 8px; border-radius:6px; border:1px solid rgba(245,158,11,0.3);">
+                            ⚠️ <b>Chưa có trên Sheet (${missing} buổi):</b> ${missingList}<br>
+                            <span style="font-size:12px;">Bấm nút bên dưới để tạo tab và đồng bộ ngay các buổi này lên Sheet!</span>
+                        </div>`;
+                    } else if (total > 0) {
+                        html += `<div style="color:#22c55e; background:rgba(34,197,94,0.1); padding:4px 8px; border-radius:6px; border:1px solid rgba(34,197,94,0.3);">
+                            ✨ <b>Tất cả ${total} buổi học đều đã có trên Google Sheet!</b>
+                        </div>`;
+                    }
+                    html += `</div>`;
+                    content.innerHTML = html;
+                } else {
+                    content.innerHTML = '<span style="color:#94a3b8;">Lớp học chưa liên kết Google Sheet.</span>';
+                }
+            } catch (e) {
+                content.innerHTML = `<span style="color:#ef4444;">Không thể lấy trạng thái Sheet: ${e.message}</span>`;
+            }
+        }
+
+        async function quickSyncAllSessionsFromModal() {
+            if (!quickSheetCurrentClass) return;
+            const classId = quickSheetCurrentClass.class_id;
+            const btn = document.getElementById('quickSyncAllBtn');
+            const origText = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '⏳ Đang kiểm tra & đồng bộ các buổi lên Sheet...';
+            }
+            try {
+                await syncClassGoogleSheet(classId);
+                await refreshQuickSheetStatus();
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origText;
+                }
+            }
+        }
+
+        async function quickSaveGoogleSheetUrl(closeModalWhenDone = true) {
+            if (!quickSheetCurrentClass) return;
+            const classId = quickSheetCurrentClass.class_id;
+            const url = document.getElementById('quickSheetUrlInput').value.trim();
+
+            const res = await api(`/api/classes/${encodeURIComponent(classId)}`, {
+                method: 'PUT',
+                body: JSON.stringify({ google_sheet_url: url })
+            });
+
+            if (res?.success) {
+                showToast(url ? '✅ Đã lưu link Google Sheet cho lớp thành công!' : '✅ Đã xóa liên kết Google Sheet của lớp');
+                quickSheetCurrentClass.google_sheet_url = url;
+                const cls = classes.find(c => c.class_id === classId);
+                if (cls) cls.google_sheet_url = url;
+
+                if (closeModalWhenDone) {
+                    closeModal('quickGoogleSheetModal');
+                    loadClasses();
+                } else {
+                    const openLink = document.getElementById('quickSheetOpenLink');
+                    const removeBtn = document.getElementById('quickSheetRemoveBtn');
+                    const statusBox = document.getElementById('quickSheetSyncStatusBox');
+                    if (url) {
+                        openLink.href = url;
+                        openLink.classList.remove('hidden');
+                        removeBtn.classList.remove('hidden');
+                        if (statusBox) statusBox.style.display = 'block';
+                        refreshQuickSheetStatus();
+                    } else {
+                        openLink.classList.add('hidden');
+                        removeBtn.classList.add('hidden');
+                        if (statusBox) statusBox.style.display = 'none';
+                    }
+                    loadClasses();
+                }
+            } else {
+                showToast('❌ ' + (res?.error || 'Không thể lưu link Google Sheet'), 'error');
+            }
+        }
+
+        async function quickRemoveSheetLink() {
+            if (!confirm('Bạn có chắc muốn hủy liên kết Google Sheet của lớp này? (Dữ liệu trên Google Sheet vẫn được giữ nguyên)')) return;
+            document.getElementById('quickSheetUrlInput').value = '';
+            await quickSaveGoogleSheetUrl();
+        }
+
+        async function quickAutoCreateInModal() {
+            if (!googleAuthState.loggedIn) {
+                showToast('Chưa kết nối tài khoản Google. Đang mở cửa sổ đăng nhập...', 'info');
+                connectGoogleAccount();
+                return;
+            }
+            if (!quickSheetCurrentClass) return;
+
+            const title = `Điểm danh - ${quickSheetCurrentClass.class_name || quickSheetCurrentClass.class_id}`;
+            showToast('Đang tạo Google Sheet mới trên Google Drive của bạn...', 'info');
+
+            try {
+                const res = await api('/api/google/create_sheet', {
+                    method: 'POST',
+                    body: JSON.stringify({ title })
+                });
+
+                if (res?.success && res.data?.spreadsheet_url) {
+                    document.getElementById('quickSheetUrlInput').value = res.data.spreadsheet_url;
+                    showToast('🎉 Đã tạo Google Sheet thành công! Đang lưu và đồng bộ toàn bộ buổi học...');
+                    await quickSaveGoogleSheetUrl(false);
+                    await syncClassGoogleSheet(quickSheetCurrentClass.class_id);
+                    await refreshQuickSheetStatus();
+                } else {
+                    showToast('❌ ' + (res?.error || 'Không tạo được Google Sheet'), 'error');
+                }
+            } catch (e) {
+                showToast('Lỗi: ' + e.message, 'error');
+            }
+        }
+
+        async function quickTestConnectionInModal() {
+            const url = document.getElementById('quickSheetUrlInput').value.trim();
+            if (!url) {
+                showToast('Vui lòng nhập link Google Sheet trước', 'error');
+                return;
+            }
+            showToast('Đang kiểm tra kết nối...', 'info');
+            try {
+                const res = await api('/api/google_sheet/test', {
+                    method: 'POST',
+                    body: JSON.stringify({ 
+                        url,
+                        class_id: quickSheetCurrentClass?.class_id || ''
+                    })
+                });
+                if (res?.has_conflict) {
+                    showToast('🚨 ' + res.message, 'error');
+                    refreshQuickSheetStatus();
+                } else if (res?.success) {
+                    showToast('🎉 ' + (res.message || 'Kết nối Google Sheet thành công!'));
+                    refreshQuickSheetStatus();
+                } else {
+                    showToast('❌ ' + (res?.error || res?.message || 'Không kết nối được Google Sheet'), 'error');
+                }
+            } catch (e) {
+                showToast('Lỗi: ' + e.message, 'error');
+            }
+        }
+
+        async function quickAutoCreateSheetForClass(classId) {
+            const cls = classes.find(c => c.class_id === classId);
+            if (!cls) return;
+
+            if (!googleAuthState.loggedIn) {
+                showToast('Vui lòng kết nối tài khoản Google trước khi tạo Sheet. Đang mở cửa sổ đăng nhập...', 'info');
+                connectGoogleAccount();
+                return;
+            }
+
+            const title = `Điểm danh - ${cls.class_name || cls.class_id}`;
+            showToast(`Đang tạo Google Sheet cho lớp ${cls.class_id}...`, 'info');
+
+            try {
+                const res = await api('/api/google/create_sheet', {
+                    method: 'POST',
+                    body: JSON.stringify({ title })
+                });
+
+                if (res?.success && res.data?.spreadsheet_url) {
+                    const sheetUrl = res.data.spreadsheet_url;
+                    await api(`/api/classes/${encodeURIComponent(classId)}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ google_sheet_url: sheetUrl })
+                    });
+                    showToast(`🎉 Đã tạo và liên kết Google Sheet cho lớp ${classId}! Đang đồng bộ toàn bộ buổi học...`);
+                    await loadClasses();
+                    await syncClassGoogleSheet(classId);
+                } else {
+                    showToast('❌ ' + (res?.error || 'Không tạo được Google Sheet'), 'error');
+                }
+            } catch (e) {
+                showToast('Lỗi: ' + e.message, 'error');
+            }
+        }
+
+        async function deleteClass(classId) {
+            console.log('deleteClass called with:', classId);
+            if (!confirm(`Bạn có chắc muốn xóa lớp "${classId}"?\n\nLưu ý: Tất cả dữ liệu sinh viên, buổi học và điểm danh của lớp này sẽ bị xóa!`)) {
+                return;
+            }
+
+            try {
+                const result = await api(`/api/classes/${encodeURIComponent(classId)}`, {
+                    method: 'DELETE'
+                });
+                console.log('Delete result:', result);
+
+                if (result?.success) {
+                    showToast(`Đã xóa lớp ${classId}`);
+                    loadClasses();
+                } else {
+                    showToast(result?.error || 'Lỗi khi xóa lớp', 'error');
+                }
+            } catch (err) {
+                console.error('Delete error:', err);
+                showToast('Lỗi khi xóa lớp: ' + err.message, 'error');
+            }
+        }
+
+        // Biến tạm để lưu thông tin trước khi chọn file
+        let pendingImport = { startRow: 2 };
+
+        function prepareImportClass() {
+            // Hiển thị hướng dẫn và hỏi dòng bắt đầu
+            const startRowStr = prompt(
+                '📚 IMPORT DANH SÁCH LỚP HỌC\n\n' +
+                '⚠️ THỨ TỰ CỘT:\n' +
+                '  Cột 1: Mã lớp (Điểm danh)\n' +
+                '  Cột 2: Mã lớp học phần\n' +
+                '  Cột 3: Tên lớp\n' +
+                '  Cột 4: Ngày bắt đầu (yyyy-mm-dd)\n' +
+                '  Cột 5: Tiết bắt đầu\n' +
+                '  Cột 6: Tiết kết thúc\n' +
+                '  Cột 7: Khoảng cách buổi (ngày)\n' +
+                '  Cột 8: Phòng học\n\n' +
+                'Nhập dòng bắt đầu dữ liệu (mặc định 2):',
+                '2'
+            );
+
+            if (startRowStr === null) return;
+
+            // Lưu thông tin và mở dialog chọn file
+            pendingImport = {
+                startRow: parseInt(startRowStr) || 2
+            };
+
+            document.getElementById('importClassFile').value = '';
+            document.getElementById('importClassFile').click();
+        }
+
+        async function importClassFromExcel(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const { startRow } = pendingImport;
+
+            try {
+                const buf = await file.arrayBuffer();
+                const wb = XLSX.read(buf, { type: 'array' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+
+                // Đọc tất cả dữ liệu dạng mảng 2 chiều (bao gồm cả dòng tiêu đề)
+                const allRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+                if (allRows.length < startRow) {
+                    showToast('File không đủ dữ liệu', 'error');
+                    return;
+                }
+
+                // --- TỰ ĐỘNG NHẬN DIỆN THÔNG TIN LỚP ---
+                const filename = file.name.replace(/\.[^/.]+$/, "").trim();
+                let classId = filename;
+                let className = filename;
+                let foundMetadata = false;
+
+                // Quét 10 dòng đầu để tìm thông tin
+                for (let i = 0; i < Math.min(startRow + 2, 20); i++) {
+                    if (!allRows[i]) continue;
+                    const line = allRows[i].join(' ').replace(/\s+/g, ' ').trim();
+                    if (!line) continue;
+
+                    // Tìm Mã lớp / Lớp: ...
+                    const matchId = line.match(/(?:Mã lớp|Mã HP|Lớp|Class ID|Class)[:\s]+([A-Z0-9\-\.]+)/i);
+                    if (matchId && matchId[1]) {
+                        classId = matchId[1].trim();
+                        foundMetadata = true;
+                    }
+
+                    // Tìm Tên lớp / Môn học: ...
+                    const matchName = line.match(/(?:Tên lớp|Môn học|Môn|Subject|Tên HP)[:\s]+([^_\n\r]+)/i);
+                    if (matchName && matchName[1]) {
+                        className = matchName[1].replace(/^(là|is)\s+/i, '').trim();
+                        if (className.length > 2) foundMetadata = true;
+                    }
+                }
+
+                // Nếu không tìm thấy, thử tách từ tên file nếu có dấu gạch ngang
+                if (!foundMetadata && filename.includes('-')) {
+                    const parts = filename.split('-');
+                    if (parts.length >= 2) {
+                        classId = parts[0].trim();
+                        className = parts.slice(1).join('-').trim();
+                    }
+                }
+
+                if (!className) className = classId;
+
+                console.log(`Auto-detected: ID=${classId}, Name=${className}`);
+
+                // Tạo lớp trước
+                const classResult = await api('/api/classes', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        class_id: classId,
+                        class_name: className,
+                        start_date: new Date().toISOString().split('T')[0],
+                        num_sessions: 10,
+                        session_interval: 7,
+                        default_start_period: 1,
+                        default_end_period: 3
+                    })
+                });
+
+                if (!classResult?.success) {
+                    showToast(classResult?.error || 'Lỗi tạo lớp', 'error');
+                    return;
+                }
+
+                // Lấy dữ liệu từ dòng startRow
+                // Thứ tự cột: MSSV | Họ | Tên | Ngày sinh | Giới tính
+                const students = [];
+                for (let i = startRow - 1; i < allRows.length; i++) {
+                    const row = allRows[i];
+                    const id = String(row[0] || '').trim();
+                    // Bỏ qua dòng trống hoặc dòng có vẻ là header lặp lại
+                    if (!id || id.toLowerCase().includes('mssv')) continue;
+
+                    students.push({
+                        id: id,
+                        last_name: String(row[1] || '').trim(),
+                        first_name: String(row[2] || '').trim(),
+                        full_name: `${String(row[1] || '').trim()} ${String(row[2] || '').trim()}`.trim(),
+                        birth_date: String(row[4] || '').trim(),
+                        gender: String(row[3] || '').trim()
+                    });
+                }
+
+                if (students.length > 0) {
+                    const importResult = await api('/api/students/import', {
+                        method: 'POST',
+                        body: JSON.stringify({ class_id: classId, students })
+                    });
+
+                    showToast(`Đã tạo lớp ${classId} (${importResult?.count || 0} SV)`);
+                } else {
+                    showToast(`Đã tạo lớp ${classId} (trống)`);
+                }
+
+                loadClasses();
+            } catch (err) {
+                console.error('Import error:', err);
+                showToast('Lỗi khi import file', 'error');
+            } finally {
+                e.target.value = '';
+            }
+        }
+
+        function viewSessions(classId) {
+            selectedClassId = classId;
+            showPage('sessions');
+            setTimeout(() => {
+                document.getElementById('sessionClassSelect').value = classId;
+                loadSessions();
+            }, 100);
+        }
+
+        // ===== Students =====
+        async function loadClassOptions(selectId) {
+            if (classes.length === 0) {
+                classes = await api('/api/classes') || [];
+            }
+
+            const select = document.getElementById(selectId);
+            select.innerHTML = '<option value="">-- Chọn lớp --</option>' +
+                classes.map(c => `<option value="${c.class_id}">${c.is_conference ? '🎤 ' : ''}${c.class_id} - ${c.class_name}</option>`).join('');
+
+            if (selectedClassId) {
+                select.value = selectedClassId;
+                if (selectId === 'studentClassSelect') loadStudents();
+                if (selectId === 'sessionClassSelect') loadSessions();
+            }
+        }
+
+        async function loadStudents() {
+            const classId = document.getElementById('studentClassSelect').value;
+            selectedClassId = classId;
+
+            if (!classId) {
+                document.getElementById('studentsTable').innerHTML = `
+          <tr><td colspan="7" class="empty-state">
+            <div class="icon">👨‍🎓</div>
+            <p>Chọn lớp để xem danh sách sinh viên</p>
+          </td></tr>
+        `;
+                updateStudentTableHeaders(false);
+                return;
+            }
+
+            const students = await api(`/api/students?class_id=${classId}`) || [];
+            currentStudents = students; // Store for sorting
+            const isConf = isConferenceClass(classId);
+            updateStudentTableHeaders(isConf);
+            renderStudents(students);
+        }
+
+        function updateStudentTableHeaders(isConf) {
+            const thead = document.querySelector('#page-students thead tr');
+            if (!thead) return;
+            if (isConf) {
+                thead.innerHTML = `
+                    <th width="50" onclick="sortData('students', 'stt')">STT</th>
+                    <th onclick="sortData('students', 'student_id')">Mã GV/SV</th>
+                    <th onclick="sortData('students', 'full_name')">Họ tên</th>
+                    <th onclick="sortData('students', 'is_lecturer')">Vai trò</th>
+                    <th>Hành động</th>
+                `;
+            } else {
+                thead.innerHTML = `
+                    <th width="50" onclick="sortData('students', 'stt')">STT</th>
+                    <th>Ảnh</th>
+                    <th onclick="sortData('students', 'student_id')">MSSV</th>
+                    <th onclick="sortData('students', 'last_name')">Họ</th>
+                    <th onclick="sortData('students', 'first_name')">Tên</th>
+                    <th onclick="sortData('students', 'email')">Email</th>
+                    <th onclick="sortData('students', 'birth_date')">Ngày sinh</th>
+                    <th onclick="sortData('students', 'gender')">Giới tính</th>
+                    <th>Hành động</th>
+                `;
+            }
+        }
+
+        function renderStudents(students) {
+            const tbody = document.getElementById('studentsTable');
+            const statsEl = document.getElementById('studentStats');
+            const classId = document.getElementById('studentClassSelect').value;
+            const isConf = isConferenceClass(classId);
+
+            // Tính thống kê
+            const total = students.length;
+
+            if (statsEl) {
+                if (total > 0) {
+                    if (isConf) {
+                        const lecturers = students.filter(s => s.is_lecturer).length;
+                        const studs = total - lecturers;
+                        statsEl.innerHTML = `Tổng: <b>${total}</b> | Giảng viên: <b>${lecturers}</b> | Sinh viên: <b>${studs}</b>`;
+                    } else {
+                        const male = students.filter(s => (s.gender || '').toLowerCase() === 'nam').length;
+                        const female = students.filter(s => (s.gender || '').toLowerCase() === 'nữ').length;
+                        statsEl.innerHTML = `Tổng: <b>${total}</b> | Nam: <b>${male}</b> | Nữ: <b>${female}</b>`;
+                    }
+                } else {
+                    statsEl.innerHTML = '';
+                }
+            }
+
+            if (students.length === 0) {
+                const colSpan = isConf ? 5 : 8;
+                tbody.innerHTML = `
+          <tr><td colspan="${colSpan}" class="empty-state">
+            <div class="icon">📭</div>
+            <p>Chưa có ${isConf ? 'người tham dự' : 'sinh viên'} nào</p>
+          </td></tr>
+        `;
+                return;
+            }
+
+            if (isConf) {
+                // Conference mode: simplified columns
+                tbody.innerHTML = students.map((s, index) => `
+          <tr>
+            <td>${index + 1}</td>
+            <td><strong>${escapeHtml(s.student_id)}</strong></td>
+            <td>${escapeHtml(s.full_name || (s.last_name || '') + ' ' + (s.first_name || ''))}</td>
+            <td>${s.is_lecturer ? '<span class="badge info">👨‍🏫 Giảng viên</span>' : '<span class="badge success">👨‍🎓 Sinh viên</span>'}</td>
+            <td>
+              <button class="btn small" onclick="editStudent('${s.student_id}')">✏️</button>
+              <button class="btn small danger" onclick="deleteStudent('${s.student_id}')">🗑️</button>
+            </td>
+          </tr>
+        `).join('');
+            } else {
+                // Normal mode: full columns
+                tbody.innerHTML = students.map((s, index) => `
+        <tr>
+          <td>${index + 1}</td>
+          <td>
+            <img class="photo-preview" 
+                 src="${s.photo_path ? '/photos/' + s.photo_path : ''}" 
+                 onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%231e293b%22 width=%22100%22 height=%22100%22/><text fill=%22%2394a3b8%22 x=%2250%22 y=%2255%22 text-anchor=%22middle%22 font-size=%2240%22>👤</text></svg>'"
+                 alt="">
+          </td>
+          <td><strong>${escapeHtml(s.student_id)}</strong></td>
+          <td>${escapeHtml(s.last_name || '')}</td>
+          <td>${escapeHtml(s.first_name || '')}</td>
+          <td>${escapeHtml(s.email || '-')}</td>
+          <td>${s.birth_date ? formatDate(s.birth_date) : '-'}</td>
+          <td>${escapeHtml(s.gender || '-')}</td>
+          <td>
+            <button class="btn small" onclick="editStudent('${s.student_id}')">✏️</button>
+            <button class="btn small" onclick="uploadStudentPhoto('${s.student_id}')">📷</button>
+            <button class="btn small primary" onclick="showTransferModal('${s.student_id}', '${escapeHtml(s.last_name || '')} ${escapeHtml(s.first_name || '')}')" title="Chuyển lớp">🔄</button>
+            <button class="btn small danger" onclick="deleteStudent('${s.student_id}')">🗑️</button>
+          </td>
+        </tr>
+      `).join('');
+            }
+        }
+
+        function editStudent(studentId) {
+            const student = currentStudents.find(s => s.student_id === String(studentId));
+            if (student) {
+                showStudentModal(student);
+            } else {
+                showToast('Không tìm thấy thông tin sinh viên', 'error');
+            }
+        }
+
+        function showStudentModal(student = null) {
+            const classId = document.getElementById('studentClassSelect').value;
+            if (!classId && !student) {
+                showToast('Vui lòng chọn lớp trước', 'error');
+                return;
+            }
+
+            const isConf = isConferenceClass(student?.class_id || classId);
+
+            document.getElementById('studentModalTitle').textContent = student
+                ? (isConf ? 'Sửa người tham dự' : 'Sửa sinh viên')
+                : (isConf ? 'Thêm người tham dự' : 'Thêm sinh viên');
+            document.getElementById('studentClassId').value = student?.class_id || classId;
+            document.getElementById('studentId').value = student?.student_id || '';
+            document.getElementById('studentId').disabled = !!student;
+            document.getElementById('studentEmail').value = student?.email || '';
+            document.getElementById('lastName').value = student?.last_name || '';
+            document.getElementById('firstName').value = student?.first_name || '';
+            document.getElementById('birthDate').value = student?.birth_date || '';
+            document.getElementById('gender').value = student?.gender || '';
+            document.getElementById('photoPreview').src = student?.photo_path ? '/photos/' + student.photo_path : '';
+
+            // Conference fields
+            const isLecturerGroup = document.getElementById('isLecturerGroup');
+            const normalStudentFields = document.getElementById('normalStudentFields');
+
+            if (isConf) {
+                isLecturerGroup.classList.remove('hidden');
+                normalStudentFields.classList.add('hidden');
+                document.getElementById('isLecturer').checked = !!student?.is_lecturer;
+                document.getElementById('studentIdLabel').textContent = 'Mã GV/SV *';
+            } else {
+                isLecturerGroup.classList.add('hidden');
+                normalStudentFields.classList.remove('hidden');
+                document.getElementById('studentIdLabel').textContent = 'MSSV *';
+            }
+            showModal('studentModal');
+        }
+
+        async function saveStudent(e) {
+            e.preventDefault();
+
+            const data = {
+                student_id: document.getElementById('studentId').value.trim(),
+                class_id: document.getElementById('studentClassId').value,
+                email: document.getElementById('studentEmail').value.trim(),
+                last_name: document.getElementById('lastName').value.trim(),
+                first_name: document.getElementById('firstName').value.trim(),
+                birth_date: document.getElementById('birthDate').value,
+                gender: document.getElementById('gender').value,
+                is_lecturer: parseInt(document.getElementById('isLecturer').value) || 0
+            };
+
+            const result = await api('/api/students', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+
+            if (result?.success) {
+                // Upload photo if selected
+                const photoInput = document.getElementById('photoInput');
+                if (photoInput.files[0]) {
+                    await uploadPhoto(data.student_id, data.class_id, photoInput.files[0]);
+                }
+
+                showToast('Đã lưu sinh viên');
+                closeModal('studentModal');
+                loadStudents();
+            } else {
+                showToast(result?.error || 'Lỗi khi lưu', 'error');
+            }
+        }
+
+        async function deleteStudent(studentId) {
+            const classId = document.getElementById('studentClassSelect').value;
+            if (!confirm(`Xóa sinh viên ${studentId}?`)) return;
+
+            const result = await api(`/api/students/${studentId}?class_id=${classId}`, { method: 'DELETE' });
+            if (result?.success) {
+                showToast('Đã xóa sinh viên');
+                loadStudents();
+            } else {
+                showToast(result?.error || 'Lỗi khi xóa', 'error');
+            }
+        }
+
+        async function deleteAllStudentsInClass() {
+            const classId = document.getElementById('studentClassSelect').value;
+            if (!classId) {
+                showToast('Vui lòng chọn lớp cần xóa sinh viên', 'error');
+                return;
+            }
+
+            if (!confirm(`CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ sinh viên của lớp này không?\n\nHành động này không thể hoàn tác!`)) {
+                return;
+            }
+
+            // Confirm again for safety
+            if (!confirm(`Xác nhận lần cuối: Xóa tất cả sinh viên lớp ${classId}?`)) {
+                return;
+            }
+
+            const result = await api(`/api/classes/${classId}/students`, { method: 'DELETE' });
+            if (result?.success) {
+                showToast(`Đã xóa toàn bộ sinh viên lớp ${classId}`);
+                loadStudents();
+            } else {
+                showToast(result?.error || 'Lỗi khi xóa', 'error');
+            }
+        }
+
+        // ===== Transfer Student =====
+        function showTransferModal(studentId, studentName) {
+            const currentClassId = document.getElementById('studentClassSelect').value;
+
+            // Set student info
+            document.getElementById('transferStudentId').value = studentId;
+            document.getElementById('transferStudentInfo').textContent = `${studentId} - ${studentName}`;
+            document.getElementById('transferCurrentClass').textContent = currentClassId;
+
+            // Populate target class dropdown (exclude current class)
+            const select = document.getElementById('transferTargetClass');
+            select.innerHTML = '<option value="">-- Chọn lớp đích --</option>' +
+                classes.filter(c => c.class_id !== currentClassId)
+                    .map(c => `<option value="${c.class_id}">${c.class_id} - ${c.class_name}</option>`)
+                    .join('');
+
+            showModal('transferModal');
+        }
+
+        async function confirmTransfer() {
+            const studentId = document.getElementById('transferStudentId').value;
+            const currentClassId = document.getElementById('studentClassSelect').value;
+            const targetClassId = document.getElementById('transferTargetClass').value;
+
+            if (!targetClassId) {
+                showToast('Vui lòng chọn lớp đích', 'error');
+                return;
+            }
+
+            if (!confirm(`Xác nhận chuyển sinh viên ${studentId} từ lớp ${currentClassId} sang lớp ${targetClassId}?`)) {
+                return;
+            }
+
+            const result = await api(`/api/students/${studentId}/transfer`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    from_class_id: currentClassId,
+                    to_class_id: targetClassId
+                })
+            });
+
+            if (result?.success) {
+                showToast(`Đã chuyển sinh viên ${studentId} sang lớp ${targetClassId}`);
+                closeModal('transferModal');
+                loadStudents();
+            } else {
+                showToast(result?.error || 'Lỗi khi chuyển lớp', 'error');
+            }
+        }
+
+        function previewPhoto(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    document.getElementById('photoPreview').src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        async function uploadPhoto(studentId, classId, file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    await api(`/api/students/${studentId}/photo`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            class_id: classId,
+                            photo: e.target.result
+                        })
+                    });
+                    resolve();
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function uploadStudentPhoto(studentId) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const classId = document.getElementById('studentClassSelect').value;
+                    await uploadPhoto(studentId, classId, file);
+                    showToast('Đã upload ảnh');
+                    loadStudents();
+                }
+            };
+            input.click();
+        }
+
+        // Biến tạm để lưu thông tin import sinh viên
+        let pendingStudentImport = { startRow: 2 };
+
+        function prepareImportStudents() {
+            const classId = document.getElementById('studentClassSelect').value;
+            if (!classId) {
+                showToast('Vui lòng chọn lớp trước', 'error');
+                return;
+            }
+
+            const isConf = isConferenceClass(classId);
+            let promptMsg;
+            if (isConf) {
+                promptMsg = '🎤 IMPORT DANH SÁCH HỘI THẢO\n\n' +
+                    '⚠️ THỨ TỰ CỘT:\n' +
+                    '  Cột 1: Mã GV/SV\n' +
+                    '  Cột 2: Họ tên\n' +
+                    '  Cột 3: Giảng viên (TRUE/1 = GV, FALSE/0 = SV)\n\n' +
+                    'Nhập dòng bắt đầu dữ liệu (mặc định 2):';
+            } else {
+                promptMsg = '📚 IMPORT SINH VIÊN\n\n' +
+                    '⚠️ THỨ TỰ CỘT:\n' +
+                    '  Cột 1: MSSV\n' +
+                    '  Cột 2: Họ\n' +
+                    '  Cột 3: Tên\n' +
+                    '  Cột 4: Giới tính\n' +
+                    '  Cột 5: Ngày sinh\n' +
+                    '  Cột 6: Email\n\n' +
+                    'Nhập dòng bắt đầu dữ liệu sinh viên (mặc định 2):';
+            }
+
+            const startRowStr = prompt(promptMsg, '2');
+
+            if (startRowStr === null) {
+                showToast('Đã hủy import', 'error');
+                return;
+            }
+
+            pendingStudentImport = { startRow: parseInt(startRowStr) || 2 };
+            document.getElementById('importFile').click();
+        }
+
+        async function importStudents(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const classId = document.getElementById('studentClassSelect').value;
+            if (!classId) {
+                showToast('Vui lòng chọn lớp trước', 'error');
+                e.target.value = '';
+                return;
+            }
+
+            const startRow = pendingStudentImport.startRow || 2;
+
+            // Helper: Convert Excel serial date to yyyy-mm-dd
+            function excelDateToYMD(serial) {
+                // Excel dates start from 1900-01-01 (day 1), but there's a leap year bug
+                const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
+                const msPerDay = 24 * 60 * 60 * 1000;
+                const date = new Date(excelEpoch.getTime() + serial * msPerDay);
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, '0');
+                const d = String(date.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            }
+
+            // Helper: Parse birth date based on type
+            function parseBirthDate(value) {
+                if (value === null || value === undefined || value === '') {
+                    return '';
+                }
+
+                // If it's a number (Excel serial date)
+                if (typeof value === 'number') {
+                    return excelDateToYMD(value);
+                }
+
+                // If it's a string
+                const str = String(value).trim();
+                if (!str) return '';
+
+                // Check if it's in dd/mm/yyyy format
+                const ddmmyyyy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                if (ddmmyyyy) {
+                    const d = ddmmyyyy[1].padStart(2, '0');
+                    const m = ddmmyyyy[2].padStart(2, '0');
+                    const y = ddmmyyyy[3];
+                    return `${y}-${m}-${d}`;
+                }
+
+                // Check if it's in dd-mm-yyyy format
+                const ddmmyyyy2 = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+                if (ddmmyyyy2) {
+                    const d = ddmmyyyy2[1].padStart(2, '0');
+                    const m = ddmmyyyy2[2].padStart(2, '0');
+                    const y = ddmmyyyy2[3];
+                    return `${y}-${m}-${d}`;
+                }
+
+                // Check if already in yyyy-mm-dd format
+                const ymd = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+                if (ymd) {
+                    return str;
+                }
+
+                // Return as-is if can't parse
+                return str;
+            }
+
+            try {
+                const buf = await file.arrayBuffer();
+                // Read with raw values to detect number types
+                const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+
+                // Đọc tất cả dữ liệu dạng mảng 2 chiều
+                const allRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
+
+                if (allRows.length < startRow) {
+                    showToast('File không đủ dữ liệu', 'error');
+                    return;
+                }
+
+                // Lấy dữ liệu từ dòng startRow
+                const isConf = isConferenceClass(classId);
+                const students = [];
+
+                if (isConf) {
+                    // Conference mode: Cột 1: Mã GV/SV | Cột 2: Họ tên | Cột 3: Giảng viên (TRUE/1)
+                    for (let i = startRow - 1; i < allRows.length; i++) {
+                        const row = allRows[i];
+                        const id = String(row[0] || '').trim();
+                        const fullName = String(row[1] || '').trim();
+
+                        if (!id || !fullName) continue;
+
+                        const lecturerVal = String(row[2] || '').trim().toLowerCase();
+                        const isLec = (lecturerVal === 'true' || lecturerVal === '1' || lecturerVal === 'x' || lecturerVal === 'gv') ? 1 : 0;
+
+                        students.push({
+                            id: id,
+                            full_name: fullName,
+                            is_lecturer: isLec
+                        });
+                    }
+                } else {
+                    // Normal mode: Thứ tự cột: MSSV | Họ | Tên | Giới tính | Ngày sinh
+                    for (let i = startRow - 1; i < allRows.length; i++) {
+                        const row = allRows[i];
+                        const id = String(row[0] || '').trim();
+                        const lastName = String(row[1] || '').trim();
+                        const firstName = String(row[2] || '').trim();
+
+                        // Skip if ID is empty OR if both name parts are empty
+                        if (!id || (!lastName && !firstName)) continue;
+
+                        const birthDateRaw = row[4]; // Column 5 (0-indexed = 4)
+                        const birthDate = parseBirthDate(birthDateRaw);
+                        const email = String(row[5] || '').trim();
+
+                        students.push({
+                            id: id,
+                            last_name: lastName,
+                            first_name: firstName,
+                            full_name: `${lastName} ${firstName}`.trim(),
+                            email: email,
+                            birth_date: birthDate,
+                            gender: String(row[3] || '').trim()
+                        });
+                    }
+                }
+
+                if (students.length === 0) {
+                    showToast('Không tìm thấy dữ liệu hợp lệ', 'error');
+                    return;
+                }
+
+                const result = await api('/api/students/import', {
+                    method: 'POST',
+                    body: JSON.stringify({ class_id: classId, students })
+                });
+
+                if (result?.success) {
+                    showToast(`Đã import ${result.count} sinh viên`);
+                    loadStudents();
+                }
+            } catch (err) {
+                console.error('Import error:', err);
+                showToast('Lỗi khi import file', 'error');
+            } finally {
+                e.target.value = '';
+            }
+        }
+
+        // ===== Sessions =====
+        async function loadSessions() {
+            const classId = document.getElementById('sessionClassSelect').value;
+            selectedClassId = classId;
+            updateSessionGoogleSheetUI(classId);
+
+            if (!classId) {
+                document.getElementById('sessionsTable').innerHTML = `
+          <tr><td colspan="7" class="empty-state">
+            <div class="icon">📅</div>
+            <p>Chọn lớp để xem danh sách buổi học</p>
+          </td></tr>
+        `;
+                return;
+            }
+
+            const sessions = await api(`/api/sessions?class_id=${classId}`) || [];
+            currentSessions = sessions;
+            renderSessions(sessions);
+        }
+
+        function updateSessionGoogleSheetUI(classId) {
+            const bar = document.getElementById('sessionGoogleSheetBar');
+            if (!bar) return;
+
+            if (!classId) {
+                bar.style.display = 'none';
+                return;
+            }
+
+            const cls = classes.find(c => c.class_id === classId);
+            if (cls && cls.google_sheet_url) {
+                bar.style.display = 'flex';
+                bar.innerHTML = `
+                    <button type="button" class="btn small" style="background:#0f9d58; color:white; border-color:#0b8043;" onclick="syncCurrentClassSessions()" title="Kiểm tra các buổi chưa có trên Sheet và đồng bộ tất cả">
+                        ⚡ Đồng bộ tất cả buổi lên Google Sheet
+                    </button>
+                    <a id="sessionOpenSheetBtn" href="${escapeHtml(cls.google_sheet_url)}" target="_blank" class="btn small" style="background:rgba(255,255,255,0.06); text-decoration:none;">
+                        📊 Mở Google Sheet ↗
+                    </a>
+                `;
+            } else {
+                bar.style.display = 'flex';
+                bar.innerHTML = `
+                    <button type="button" class="btn small" style="background:rgba(37,99,235,0.15); color:#93c5fd; border-color:#3b82f6;" onclick="openQuickGoogleSheetModal('${classId}')">
+                        🔗 Kết nối Google Sheet cho lớp này
+                    </button>
+                `;
+            }
+        }
+
+        async function syncCurrentClassSessions() {
+            if (!selectedClassId) {
+                showToast('Vui lòng chọn một lớp học trước', 'warning');
+                return;
+            }
+            await syncClassGoogleSheet(selectedClassId);
+            await loadSessions();
+        }
+
+        function renderSessions(sessions) {
+            const tbody = document.getElementById('sessionsTable');
+            const today = new Date().toISOString().split('T')[0];
+
+            if (sessions.length === 0) {
+                tbody.innerHTML = `
+          <tr><td colspan="7" class="empty-state">
+            <div class="icon">📭</div>
+            <p>Chưa có buổi học nào</p>
+          </td></tr>
+        `;
+                return;
+            }
+
+            tbody.innerHTML = sessions.map((s, index) => {
+                const isPast = s.session_date < today;
+                const statusBadge = s.is_open
+                    ? '<span class="badge success">🟢 Đang mở</span>'
+                    : (isPast
+                        ? '<span class="badge warning">⏸️ Đã qua</span>'
+                        : '<span class="badge info">⏳ Chưa mở</span>');
+
+                return `
+        <tr>
+          <td class="nowrap">${index + 1}</td>
+          <td class="nowrap"><strong>Buổi ${s.session_number}</strong>${isConferenceClass(selectedClassId) ? ' <span class="badge info">🎤</span>' : ''}</td>
+          <td class="nowrap">${formatDate(s.session_date)}</td>
+          <td class="nowrap">${s.start_period}-${s.end_period}</td>
+          <td class="nowrap">${statusBadge}</td>
+          <td class="nowrap">${s.checkin_count || 0}/${s.total_students || 0}</td>
+          <td class="nowrap actions-cell">
+            <div style="display:flex; gap:6px; align-items:center; flex-wrap:nowrap;">
+              ${s.is_open
+                          ? `<button class="btn small danger" onclick="closeSession(${s.session_id})">🔒 Đóng</button>
+                         <button class="btn small success" onclick="goToAttendance(${s.session_id})">📟 Điểm danh</button>`
+                          : `<button class="btn small primary" onclick="openAndGoToAttendance(${s.session_id})">📟 Mở điểm danh</button>
+                             <button class="btn small" onclick="sendEmailReport(${s.session_id})">📧 Email</button>`
+                      }
+              <button class="btn small" style="background:rgba(16,185,129,0.15); border-color:rgba(16,185,129,0.4); color:#34d399;" title="Đồng bộ buổi này lên Google Sheet" onclick="syncSessionGoogleSheet(${s.session_id})">📊</button>
+              <button class="btn small" onclick="editSession(${s.session_id}, '${s.session_date}', ${s.start_period}, ${s.end_period})">✏️</button>
+            </div>
+          </td>
+        </tr>
+        `;
+            }).join('');
+        }
+
+        async function syncSessionGoogleSheet(sessionId) {
+            showToast('Đang gửi dữ liệu lên Google Sheet...', 'info');
+            try {
+                const res = await api(`/api/sessions/${sessionId}/sync_google_sheet`, { method: 'POST' });
+                if (res?.success) {
+                    showToast(`✅ ${res.message || 'Đồng bộ Google Sheet thành công!'}`);
+                } else {
+                    showToast(`❌ ${res?.error || 'Lỗi khi đồng bộ Google Sheet'}`, 'error');
+                }
+            } catch (e) {
+                showToast(`Lỗi: ${e.message}`, 'error');
+            }
+        }
+
+        async function openAndGoToAttendance(sessionId) {
+            // Mở buổi và chuyển đến trang điểm danh
+            const result = await api(`/api/sessions/${sessionId}/open`, { method: 'POST' });
+            if (result?.success) {
+                window.location.href = `scan.html?session=${sessionId}`;
+            }
+        }
+
+        async function closeSession(sessionId) {
+            const result = await api(`/api/sessions/${sessionId}/close`, { method: 'POST' });
+            if (result?.success) {
+                showToast('Đã đóng buổi học');
+                // Tự động đồng bộ lên Google Sheet nếu lớp đã cấu hình
+                try {
+                    const syncRes = await api(`/api/sessions/${sessionId}/sync_google_sheet`, { method: 'POST' });
+                    if (syncRes?.success) {
+                        showToast(`📊 Đã tự động cập nhật Google Sheet (${syncRes.count || 0} SV)`);
+                    }
+                } catch(e) {}
+                loadSessions();
+            }
+        }
+
+        async function sendEmailReport(sessionId) {
+            if (!confirm('Gửi email báo cáo cho tất cả sinh viên trong lớp?')) return;
+
+            showToast('Đang gửi email...', 'info');
+            const result = await api('/api/send_email_report', {
+                method: 'POST',
+                body: JSON.stringify({ session_id: sessionId })
+            });
+
+            if (result?.success) {
+                showToast(`Đã gửi: ${result.sent}, Lỗi: ${result.failed}`);
+            } else {
+                showToast(result?.error || 'Lỗi gửi email', 'error');
+            }
+        }
+
+        async function openEmailTemplateModal() {
+            try {
+                const data = await api('/api/email_template');
+                if (data) {
+                    document.getElementById('emailSubject').value = data.subject || '';
+                    document.getElementById('emailBody').value = data.body || '';
+                    showModal('emailTemplateModal');
+                }
+            } catch (e) {
+                showToast('Lỗi tải mẫu email', 'error');
+            }
+        }
+
+        async function saveEmailTemplate(e) {
+            e.preventDefault();
+            const subject = document.getElementById('emailSubject').value.trim();
+            const body = document.getElementById('emailBody').value.trim();
+
+            const result = await api('/api/email_template', {
+                method: 'POST',
+                body: JSON.stringify({ subject, body })
+            });
+
+            if (result?.success) {
+                showToast('Đã lưu mẫu email');
+                closeModal('emailTemplateModal');
+            } else {
+                showToast('Lỗi lưu mẫu email', 'error');
+            }
+        }
+
+        function goToAttendance(sessionId) {
+            window.location.href = `scan.html?session=${sessionId}`;
+        }
+
+        function editSession(sessionId, date, startPeriod, endPeriod) {
+            document.getElementById('editSessionId').value = sessionId;
+            document.getElementById('editSessionDate').value = date;
+            document.getElementById('editStartPeriod').value = startPeriod;
+            document.getElementById('editEndPeriod').value = endPeriod;
+            showModal('sessionModal');
+        }
+
+        async function saveSession(e) {
+            e.preventDefault();
+
+            const sessionId = document.getElementById('editSessionId').value;
+            const data = {
+                session_date: document.getElementById('editSessionDate').value,
+                start_period: parseInt(document.getElementById('editStartPeriod').value),
+                end_period: parseInt(document.getElementById('editEndPeriod').value)
+            };
+
+            const result = await api(`/api/sessions/${sessionId}`, {
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+
+            if (result?.success) {
+                showToast('Đã cập nhật buổi học');
+                closeModal('sessionModal');
+                loadSessions();
+            }
+        }
+
+        // ===== Utilities =====
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+
+            let d;
+            const str = String(dateStr).trim();
+
+            // Check if it's yyyy-mm-dd format
+            const ymd = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+            if (ymd) {
+                d = new Date(parseInt(ymd[1]), parseInt(ymd[2]) - 1, parseInt(ymd[3]));
+            }
+            // Check if it's dd/mm/yyyy format
+            else {
+                const ddmmyyyy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                if (ddmmyyyy) {
+                    d = new Date(parseInt(ddmmyyyy[3]), parseInt(ddmmyyyy[2]) - 1, parseInt(ddmmyyyy[1]));
+                }
+                // Check if it's dd-mm-yyyy format
+                else {
+                    const ddmmyyyy2 = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+                    if (ddmmyyyy2) {
+                        d = new Date(parseInt(ddmmyyyy2[3]), parseInt(ddmmyyyy2[2]) - 1, parseInt(ddmmyyyy2[1]));
+                    }
+                    else {
+                        // Try native parsing as fallback
+                        d = new Date(str);
+                    }
+                }
+            }
+
+            if (isNaN(d.getTime())) return dateStr; // Return original if can't parse
+
+            // Format as dd/mm/yyyy
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+        // ===== Init =====
+        async function importClassListFromExcel(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const { startRow } = pendingImport;
+
+            try {
+                const buf = await file.arrayBuffer();
+                const wb = XLSX.read(buf, { type: 'array' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+
+                // Đọc tất cả dữ liệu dạng mảng 2 chiều
+                const allRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+                if (allRows.length < startRow) {
+                    showToast('File không đủ dữ liệu', 'error');
+                    return;
+                }
+
+                let successCount = 0;
+                let errorCount = 0;
+
+                // Duyệt qua từng dòng để tạo lớp
+                for (let i = startRow - 1; i < allRows.length; i++) {
+                    const row = allRows[i];
+                    const classId = String(row[0] || '').trim();
+                    if (!classId) continue;
+
+                    const creditClassId = String(row[1] || '').trim();
+                    const className = String(row[2] || '').trim();
+                    const startDateRaw = row[3];
+                    let startDate = '';
+
+                    if (startDateRaw) {
+                        if (typeof startDateRaw === 'number') {
+                            const dateObj = new Date(Math.round((startDateRaw - 25569) * 86400 * 1000));
+                            startDate = dateObj.toISOString().split('T')[0];
+                        } else {
+                            let s = String(startDateRaw).trim();
+                            if (s.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+                                const parts = s.split('/');
+                                startDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                            } else {
+                                startDate = s;
+                            }
+                        }
+                    }
+
+                    const startPeriod = parseInt(row[4]) || 1;
+                    const endPeriod = parseInt(row[5]) || 3;
+                    const interval = parseInt(row[6]) || 7;
+                    const room = String(row[7] || '').trim();
+
+                    const result = await api('/api/classes', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            class_id: classId,
+                            credit_class_id: creditClassId,
+                            class_name: className || classId,
+                            start_date: startDate,
+                            num_sessions: 10,
+                            session_interval: interval,
+                            default_start_period: startPeriod,
+                            default_end_period: endPeriod,
+                            room: room
+                        })
+                    });
+
+                    if (result?.success) {
+                        successCount++;
+                    } else {
+                        console.error(`Lỗi tạo lớp ${classId}:`, result?.error);
+                        // Alert the first error to help debug
+                        if (errorCount === 0) {
+                            alert(`Lỗi mẫu (Lớp ${classId}): ${result?.error}`);
+                        }
+                        errorCount++;
+                    }
+                }
+
+                showToast(`Đã import ${successCount} lớp, lỗi ${errorCount} lớp`);
+                loadClasses();
+            } catch (err) {
+                console.error('Import error:', err);
+                showToast('Lỗi khi import file', 'error');
+            } finally {
+                e.target.value = '';
+            }
+        }
+
+        // ===== Init =====
+        loadClasses();
+        checkGoogleAuthStatus();
+
+        if (window.location.search.includes('auth=success')) {
+            showToast('🎉 Kết nối tài khoản Google thành công!');
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    </script>
+</body>
+
+</html>

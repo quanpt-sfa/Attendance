@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Xuất Dữ Liệu Cũ</title>
+    <style>
+        :root {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        }
+
+        body {
+            margin: 0;
+            padding: 40px;
+            background: #0b1220;
+            color: #e5e7eb;
+            min-height: 100vh;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, .08);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 600px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 10px 10px 0;
+        }
+
+        .btn:hover {
+            background: #1d4ed8;
+        }
+
+        .btn.danger {
+            background: #dc2626;
+        }
+
+        .btn.danger:hover {
+            background: #b91c1c;
+        }
+
+        .log {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .success {
+            color: #34d399;
+        }
+
+        .error {
+            color: #f87171;
+        }
+
+        .info {
+            color: #60a5fa;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>📦 Xuất Dữ Liệu Điểm Danh Cũ (Database V2)</h1>
+
+    <div class="card">
+        <p>Công cụ này giúp bạn xuất dữ liệu điểm danh từ database cũ (v2) trước khi nâng cấp lên v3 có tính năng chọn
+            buổi.</p>
+        <button class="btn" id="btnCheck">🔍 Kiểm tra dữ liệu cũ</button>
+        <button class="btn" id="btnExport">📥 Xuất Excel</button>
+    </div>
+
+    <div class="log" id="log">Nhấn "Kiểm tra dữ liệu cũ" để bắt đầu...</div>
+
+    <script src="./libs/dexie.min.js"></script>
+    <script src="./libs/xlsx.full.min.js"></script>
+
+    <script>
+        const logEl = document.getElementById('log');
+
+        function log(msg, type = '') {
+            const span = document.createElement('span');
+            span.className = type;
+            span.textContent = msg + '\n';
+            logEl.appendChild(span);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function clearLog() {
+            logEl.innerHTML = '';
+        }
+
+        // Open old database v2
+        const dbOld = new Dexie('zebra_checkin_db_v2');
+        dbOld.version(1).stores({
+            classes: 'className, lastModified',
+            roster: '[className+id], className, id',
+            checkins: '[className+id+type], [className+type], className, id, time',
+            logs: '++_id, time, className, id, type, result'
+        });
+
+        document.getElementById('btnCheck').addEventListener('click', async () => {
+            clearLog();
+            log('🔍 Đang kiểm tra database cũ (zebra_checkin_db_v2)...', 'info');
+
+            try {
+                const classes = await dbOld.classes.toArray();
+                log(`\n📚 Tìm thấy ${classes.length} lớp học:`, 'success');
+                for (const c of classes) {
+                    log(`   - ${c.className}`);
+                }
+
+                const roster = await dbOld.roster.toArray();
+                log(`\n👥 Tổng số sinh viên trong danh sách: ${roster.length}`, 'success');
+
+                const checkins = await dbOld.checkins.toArray();
+                log(`\n✅ Tổng số lượt điểm danh: ${checkins.length}`, 'success');
+
+                const checkInCount = checkins.filter(c => c.type === 'in').length;
+                const checkOutCount = checkins.filter(c => c.type === 'out').length;
+                log(`   - Vào lớp: ${checkInCount}`);
+                log(`   - Ra về: ${checkOutCount}`);
+
+                const logs = await dbOld.logs.toArray();
+                log(`\n📋 Tổng số log: ${logs.length}`, 'success');
+
+                if (checkins.length > 0) {
+                    log('\n✅ Có dữ liệu để xuất! Nhấn "Xuất Excel" để tải về.', 'success');
+                } else {
+                    log('\n⚠️ Không có dữ liệu điểm danh trong database cũ.', 'error');
+                }
+
+            } catch (err) {
+                log(`\n❌ Lỗi: ${err.message}`, 'error');
+                log('Database cũ có thể không tồn tại hoặc bị lỗi.', 'error');
+            }
+        });
+
+        document.getElementById('btnExport').addEventListener('click', async () => {
+            clearLog();
+            log('📥 Đang xuất dữ liệu từ database cũ...', 'info');
+
+            try {
+                const classes = await dbOld.classes.toArray();
+                const roster = await dbOld.roster.toArray();
+                const checkins = await dbOld.checkins.toArray();
+                const logs = await dbOld.logs.toArray();
+
+                if (checkins.length === 0 && roster.length === 0) {
+                    log('\n⚠️ Không có dữ liệu để xuất!', 'error');
+                    return;
+                }
+
+                // Group checkins by class and student
+                const checkMap = new Map();
+                for (const c of checkins) {
+                    const key = `${c.className}|${c.id}`;
+                    if (!checkMap.has(key)) {
+                        checkMap.set(key, { className: c.className, id: c.id, name: c.name, checkIn: null, checkOut: null });
+                    }
+                    const entry = checkMap.get(key);
+                    if (c.type === 'in') entry.checkIn = c.time;
+                    if (c.type === 'out') entry.checkOut = c.time;
+                }
+
+                // Create attendance sheet
+                const diemDanh = [];
+                for (const student of roster) {
+                    const key = `${student.className}|${student.id}`;
+                    const check = checkMap.get(key) || {};
+                    diemDanh.push({
+                        ClassName: student.className,
+                        MSSV: student.id,
+                        HoTen: student.name,
+                        CheckInTime: check.checkIn || '',
+                        CheckOutTime: check.checkOut || '',
+                        Status: check.checkIn ? 'Đã vào lớp' : 'Chưa vào lớp'
+                    });
+                }
+
+                // Create logs sheet
+                const logsData = logs.map(l => ({
+                    ClassName: l.className,
+                    Time: l.time,
+                    MSSV: l.id,
+                    Type: l.type === 'in' ? 'Vào lớp' : (l.type === 'out' ? 'Ra về' : l.type),
+                    Result: l.result,
+                    Note: l.note || ''
+                }));
+
+                // Create raw checkins sheet
+                const checkinsData = checkins.map(c => ({
+                    ClassName: c.className,
+                    MSSV: c.id,
+                    HoTen: c.name,
+                    Time: c.time,
+                    Type: c.type === 'in' ? 'Vào lớp' : 'Ra về'
+                }));
+
+                // Create workbook
+                const wb = XLSX.utils.book_new();
+
+                if (diemDanh.length > 0) {
+                    const ws1 = XLSX.utils.json_to_sheet(diemDanh);
+                    XLSX.utils.book_append_sheet(wb, ws1, 'DiemDanh');
+                    log(`✅ Sheet DiemDanh: ${diemDanh.length} dòng`, 'success');
+                }
+
+                if (checkinsData.length > 0) {
+                    const ws2 = XLSX.utils.json_to_sheet(checkinsData);
+                    XLSX.utils.book_append_sheet(wb, ws2, 'RawCheckins');
+                    log(`✅ Sheet RawCheckins: ${checkinsData.length} dòng`, 'success');
+                }
+
+                if (logsData.length > 0) {
+                    const ws3 = XLSX.utils.json_to_sheet(logsData);
+                    XLSX.utils.book_append_sheet(wb, ws3, 'Logs');
+                    log(`✅ Sheet Logs: ${logsData.length} dòng`, 'success');
+                }
+
+                // Save file
+                const fname = `backup_diemdanh_v2_${new Date().toISOString().slice(0, 10)}.xlsx`;
+                XLSX.writeFile(wb, fname);
+
+                log(`\n🎉 Đã xuất file: ${fname}`, 'success');
+                log('\nFile đã được tải về máy của bạn!', 'success');
+
+            } catch (err) {
+                log(`\n❌ Lỗi: ${err.message}`, 'error');
+                console.error(err);
+            }
+        });
+    </script>
+</body>
+
+</html>

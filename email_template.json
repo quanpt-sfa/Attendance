@@ -1,0 +1,4 @@
+{
+    "subject": "[{{class_id}}] Báo cáo điểm danh - Buổi {{session_number}}",
+    "body": "<html>\n<body>\n    <h2>Báo cáo điểm danh - {{class_name}}</h2>\n    <p>Chào {{full_name}} ({{student_id}}),</p>\n    <p>Thông tin buổi học ngày <b>{{session_date}}</b>:</p>\n    <div style=\"border: 1px solid #ddd; padding: 15px; border-radius: 5px; background: #f9f9f9;\">\n        <h3 style=\"color: {{status_color}};\">{{status}}</h3>\n        {{details}}\n    </div>\n    <p>Môn: {{class_id}} - Buổi số: {{session_number}}</p>\n    <hr>\n    <p style=\"font-size: 12px; color: #777;\">Email này được gửi tự động từ hệ thống điểm danh.</p>\n</body>\n</html>"
+}
