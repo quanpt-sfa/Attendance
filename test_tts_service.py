@@ -121,6 +121,36 @@ class TTSServiceCacheTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             tts_service.ensure_audio("   ")
 
+    def test_precache_deduplicates_names_and_counts_cached_generated_failed(self):
+        cached_path = tts_service._cache_path("Nguyễn Văn An")
+        self.write_fake_wav("Nguyễn Văn An", cached_path)
+        calls = []
+
+        def fake_ensure(name):
+            calls.append(name)
+            if name == "Lỗi Tổng Hợp":
+                raise tts_service.TTSUnavailableError("missing runtime")
+            path = tts_service._cache_path(name)
+            self.write_fake_wav(name, path)
+            return path
+
+        students = [
+            {"full_name": "Nguyễn Văn An"},
+            {"full_name": "  Nguyễn  Văn An "},
+            {"full_name": "Trần Thị Bình"},
+            {"fullName": "Trần Thị Bình"},
+            {"full_name": "Lỗi Tổng Hợp"},
+            {"full_name": "   "},
+        ]
+        with mock.patch.object(tts_service, "ensure_audio", side_effect=fake_ensure):
+            result = tts_service.precache_students(students)
+
+        self.assertEqual(
+            result,
+            {"total": 3, "generated": 1, "cached": 1, "failed": 1},
+        )
+        self.assertEqual(calls, ["Trần Thị Bình", "Lỗi Tổng Hợp"])
+
 
 class TTSServiceStatusTests(unittest.TestCase):
     def test_missing_runtime_and_model_report_unavailable_without_crash(self):
