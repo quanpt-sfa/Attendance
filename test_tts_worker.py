@@ -1,10 +1,12 @@
 import io
 import json
-import tempfile
 import unittest
 from pathlib import Path
 
 import tts_worker
+
+
+ROOT = Path(__file__).resolve().parent
 
 
 class TTSWorkerProtocolTests(unittest.TestCase):
@@ -68,6 +70,38 @@ class TTSWorkerProtocolTests(unittest.TestCase):
         self.assertFalse(lines[1]["ok"])
         self.assertNotIn("not-json", stdout.getvalue())
         self.assertIn("not-json", stderr.getvalue())
+
+
+class TTSWindowsScriptContractTests(unittest.TestCase):
+    def test_setup_script_pins_runtime_voice_revision_hash_and_smoke_test(self):
+        text = (ROOT / "Setup-TTS.bat").read_text(encoding="utf-8").lower()
+        self.assertIn("piper-tts==1.8.0", text)
+        self.assertIn(".venv-tts\\scripts\\python.exe", text)
+        self.assertIn("vi_vn-vais1000-medium.onnx", text)
+        self.assertIn("vi_vn-vais1000-medium.onnx.json", text)
+        self.assertIn("resolve/%voice_revision%/vi/vi_vn/vais1000/medium", text)
+        self.assertIn("voice_revision=v1.0.0", text)
+        self.assertIn(
+            "ec7c89e2c85f4d1edc24b6120c18aaf1bda614f06b511567eb9c7c0de15e2dab",
+            text,
+        )
+        self.assertIn("get-filehash -algorithm sha256", text)
+        self.assertIn("--smoke-test", text)
+
+    def test_check_script_is_read_only(self):
+        text = (ROOT / "Check-TTS.bat").read_text(encoding="utf-8").lower()
+        self.assertIn("tts_service.get_status", text)
+        self.assertIn("piper:", text)
+        self.assertIn("voice:", text)
+        self.assertIn("cache:", text)
+        for forbidden in (
+            "pip install",
+            "invoke-webrequest",
+            "curl ",
+            "bitsadmin",
+            "start-bitstransfer",
+        ):
+            self.assertNotIn(forbidden, text)
 
 
 if __name__ == "__main__":
