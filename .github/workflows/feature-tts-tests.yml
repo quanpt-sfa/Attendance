@@ -1,9 +1,13 @@
-name: Feature TTS Tests
+name: Attendance Regression Tests
 
 on:
   push:
     branches:
+      - main
       - feature/offline-vietnamese-tts
+  pull_request:
+    branches:
+      - main
 
 jobs:
   test:
@@ -16,17 +20,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Python baseline and TTS tests
+      - name: Python syntax and regression tests
         shell: bash
         run: |
           set -euo pipefail
+          python -m py_compile startup.py tts_service.py tts_worker.py server_tts.py
           python -m unittest test_db_schema test_startup -v
-          for f in test_tts_service.py test_tts_worker.py test_server_tts.py test_tts_integration.py; do
-            if [ -f "$f" ]; then python -m unittest "${f%.py}" -v; fi
-          done
-      - name: JavaScript baseline and TTS tests
+          python -m unittest test_tts_service test_tts_worker test_server_tts test_tts_integration -v
+      - name: JavaScript syntax and regression tests
         shell: bash
         run: |
           set -euo pipefail
+          node --check random-picker.js
+          node --check random-picker-attendance.js
+          node --check random-picker-speech.js
           node test_random_picker_attendance.js
-          if [ -f test_random_picker_speech.js ]; then node test_random_picker_speech.js; fi
+          node test_random_picker_speech.js
