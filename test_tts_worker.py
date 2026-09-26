@@ -71,13 +71,23 @@ class TTSWorkerProtocolTests(unittest.TestCase):
         self.assertNotIn("not-json", stdout.getvalue())
         self.assertIn("not-json", stderr.getvalue())
 
-    def test_smoke_sample_exercises_vietnamese_names_with_diacritics(self):
+    def test_spoken_name_lowercases_uppercase_tokens_before_espeak(self):
+        self.assertEqual(
+            tts_worker.prepare_spoken_name("Nguyễn Thị THU"),
+            "nguyễn thị thu",
+        )
+        self.assertEqual(
+            tts_worker.prepare_spoken_name("  HUỲNH   QUỐC PHƯỚC  "),
+            "huỳnh quốc phước",
+        )
+
+    def test_smoke_sample_exercises_vietnamese_names_with_diacritics_and_uppercase(self):
         sample = tts_worker.DEFAULT_SMOKE_TEXT
         for fragment in (
-            "Nguyễn Thị Thúy Quỳnh",
-            "Huỳnh Quốc Phước",
-            "Võ Trọng Nghĩa",
-            "Đặng Hoàng Yến",
+            "Nguyễn Thị THÚY QUỲNH",
+            "HUỲNH QUỐC PHƯỚC",
+            "VÕ TRỌNG NGHĨA",
+            "ĐẶNG HOÀNG YẾN",
         ):
             self.assertIn(fragment, sample)
 
