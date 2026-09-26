@@ -1,6 +1,7 @@
 import io
 import sqlite3
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -23,7 +24,7 @@ class FakeHandler:
         self.status = status
         self.json = data
 
-    def send_response(self, status):
+    def send_response(self, status, message=None):
         self.status = status
 
     def send_header(self, key, value):
@@ -128,6 +129,132 @@ class ServerTTSEndpointTests(unittest.TestCase):
         self.assertIn(("Content-Type", "audio/wav"), handler.headers_sent)
         self.assertIn(("Content-Length", str(len(FAKE_WAV))), handler.headers_sent)
         ensure.assert_called_once_with("Nguyễn Văn An")
+
+
+class ServerTTSPrecacheTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.db_file = Path(self.temp.name) / "attendance.db"
+        with sqlite3.connect(self.db_file) as conn:
+            conn.execute(
+                "CREATE TABLE students (student_id TEXT, class_id TEXT, full_name TEXT, "
+                "PRIMARY KEY(student_id, class_id))"
+            )
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def make_server_module(self):
+        db_file = self.db_file
+
+        class Handler:
+            def __init__(self):
+                self.path = "/"
+                self.status = None
+                self.original_get_calls = 0
+
+            def send_response(self, status, message=None):
+                self.status = status
+
+            def do_GET(self):
+                self.original_get_calls += 1
+
+            def create_student(self):
+                with sqlite3.connect(db_file) as conn:
+                    conn.execute(
+                        "INSERT INTO students VALUES (?, ?, ?)",
+                        ("S1", "C1", "Nguyễn Văn Một"),
+                    )
+                self.send_response(200)
+
+            def import_students(self):
+                with sqlite3.connect(db_file) as conn:
+                    conn.execute(
+                        "INSERT INTO students VALUES (?, ?, ?)",
+                        ("S2", "C1", "Trần Thị Hai"),
+                    )
+                self.send_response(200)
+
+            def update_student(self, student_id):
+                with sqlite3.connect(db_file) as conn:
+                    conn.execute(
+                        "UPDATE students SET full_name = ? WHERE student_id = ?",
+                        ("Nguyễn Văn Một Mới", student_id),
+                    )
+                self.send_response(200)
+
+        return types.SimpleNamespace(AttendanceHandler=Handler, DB_FILE=str(db_file))
+
+    def test_install_routes_tts_get_before_legacy_get(self):
+        module = self.make_server_module()
+        server_tts.install(module)
+        handler = module.AttendanceHandler()
+
+        with mock.patch.object(server_tts, "handle_tts_get", return_value=True) as routed:
+            handler.path = "/api/tts/status"
+            handler.do_GET()
+        routed.assert_called_once_with(handler, "/api/tts/status", module.DB_FILE)
+        self.assertEqual(handler.original_get_calls, 0)
+
+        with mock.patch.object(server_tts, "handle_tts_get", return_value=False):
+            handler.path = "/api/classes"
+            handler.do_GET()
+        self.assertEqual(handler.original_get_calls, 1)
+
+    def test_successful_student_writes_schedule_after_committed_data_is_visible(self):
+        module = self.make_server_module()
+        snapshots = []
+
+        def observe(db_file):
+            with sqlite3.connect(db_file) as conn:
+                snapshots.append(conn.execute("SELECT student_id, full_name FROM students ORDER BY student_id").fetchall())
+
+        with mock.patch.object(server_tts, "schedule_tts_precache", side_effect=observe) as schedule:
+            server_tts.install(module)
+            handler = module.AttendanceHandler()
+            handler.create_student()
+            handler.import_students()
+            handler.update_student("S1")
+
+        self.assertEqual(schedule.call_count, 3)
+        self.assertEqual(snapshots[0], [("S1", "Nguyễn Văn Một")])
+        self.assertEqual(snapshots[1], [("S1", "Nguyễn Văn Một"), ("S2", "Trần Thị Hai")])
+        self.assertEqual(snapshots[2][0], ("S1", "Nguyễn Văn Một Mới"))
+
+    def test_failed_student_write_does_not_schedule_precache(self):
+        module = self.make_server_module()
+
+        def fail_create(self):
+            self.send_response(500)
+
+        module.AttendanceHandler.create_student = fail_create
+        with mock.patch.object(server_tts, "schedule_tts_precache") as schedule:
+            server_tts.install(module)
+            module.AttendanceHandler().create_student()
+        schedule.assert_not_called()
+
+    def test_schedule_tts_precache_uses_daemon_thread_and_returns_without_running_inline(self):
+        created = []
+
+        class FakeThread:
+            def __init__(self, target, args, name, daemon):
+                self.target = target
+                self.args = args
+                self.name = name
+                self.daemon = daemon
+                self.started = False
+                created.append(self)
+
+            def start(self):
+                self.started = True
+
+        with mock.patch.object(server_tts.threading, "Thread", FakeThread):
+            thread = server_tts.schedule_tts_precache(str(self.db_file))
+
+        self.assertIs(thread, created[0])
+        self.assertTrue(thread.daemon)
+        self.assertTrue(thread.started)
+        self.assertEqual(thread.args, (str(self.db_file),))
 
 
 if __name__ == "__main__":
