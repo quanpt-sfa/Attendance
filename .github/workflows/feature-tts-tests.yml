@@ -1,0 +1,32 @@
+name: Feature TTS Tests
+
+on:
+  push:
+    branches:
+      - feature/offline-vietnamese-tts
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Python baseline and TTS tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest test_db_schema test_startup -v
+          for f in test_tts_service.py test_tts_worker.py test_server_tts.py test_tts_integration.py; do
+            if [ -f "$f" ]; then python -m unittest "${f%.py}" -v; fi
+          done
+      - name: JavaScript baseline and TTS tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node test_random_picker_attendance.js
+          if [ -f test_random_picker_speech.js ]; then node test_random_picker_speech.js; fi
