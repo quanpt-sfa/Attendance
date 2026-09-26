@@ -118,8 +118,25 @@ class PiperSynthesizer:
         if not spoken_text:
             raise ValueError("Synthesis text is empty after normalization")
         voice = self._load_voice()
-        with wave.open(str(output), "wb") as wav_file:
+
+        wav_file = wave.open(str(output), "wb")
+        try:
             voice.synthesize_wav(spoken_text, wav_file)
+        except Exception:
+            # Piper 1.8 sets the WAV format only after the first audio chunk.
+            # If phonemization/model inference fails before that, wave.close()
+            # raises '# channels not specified' and masks the real exception.
+            try:
+                wav_file.close()
+            except Exception:
+                pass
+            try:
+                output.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
+        else:
+            wav_file.close()
 
 
 def _build_parser() -> argparse.ArgumentParser:
