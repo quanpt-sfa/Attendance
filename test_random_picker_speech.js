@@ -105,14 +105,23 @@ async function testSoundDisabledIsSilent() {
   assert.strictEqual(fallback, 0);
 }
 
-function testInstallPatchPreservesClassAndDatabaseSource() {
-  function Picker() { this.students = []; this.activeSource = 'checkedin'; this.soundEnabled = true; }
+function makePickerClass() {
+  function Picker() {
+    this.students = [];
+    this.excelStudents = [];
+    this.activeSource = 'checkedin';
+    this.soundEnabled = true;
+  }
   Picker.prototype.setStudents = function (list) {
     this.students = list.map(s => ({ maSV: s.maSV || '', fullName: s.fullName || '' }));
   };
   Picker.prototype.speakName = function (name) { this.browserSpoken = name; };
-
   Speech.installRandomPicker(Picker);
+  return Picker;
+}
+
+function testInstallPatchPreservesClassAndDatabaseSource() {
+  const Picker = makePickerClass();
   const picker = new Picker();
   picker.setStudents([{ maSV: 'S1', fullName: 'Tên Một', class_id: 'C1' }]);
   assert.strictEqual(picker.students[0].classId, 'C1');
@@ -123,6 +132,16 @@ function testInstallPatchPreservesClassAndDatabaseSource() {
   assert.strictEqual(picker.students[0].ttsDatabaseSource, false);
 }
 
+function testStandaloneDirectExcelUploadIsNotMarkedAsDatabaseSource() {
+  const Picker = makePickerClass();
+  const picker = new Picker();
+  const parsedExcel = [{ maSV: 'X1', fullName: 'Tên Excel' }];
+  picker.excelStudents = parsedExcel;
+  assert.strictEqual(picker.activeSource, 'checkedin', 'standalone upload leaves default source unchanged');
+  picker.setStudents(parsedExcel);
+  assert.strictEqual(picker.students[0].ttsDatabaseSource, false);
+}
+
 (async () => {
   await testLocalAudioSuppressesFallback();
   await testFailureFallsBackExactlyOnce();
@@ -130,6 +149,7 @@ function testInstallPatchPreservesClassAndDatabaseSource() {
   await testExcelSourceSkipsNetworkAndUsesFallback();
   await testSoundDisabledIsSilent();
   testInstallPatchPreservesClassAndDatabaseSource();
+  testStandaloneDirectExcelUploadIsNotMarkedAsDatabaseSource();
   console.log('PASS random-picker local speech tests');
 })().catch(err => {
   console.error(err);
