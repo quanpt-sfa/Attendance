@@ -24,7 +24,7 @@ for %%p in (py python python3) do (
         echo   Server: http://localhost:%PORT%
         echo   Ctrl+C de dung
         echo.
-        %%p -c "import server; server.PORT=%PORT%; server.run_server()"
+        %%p startup.py %PORT%
         goto :end
     )
 )
