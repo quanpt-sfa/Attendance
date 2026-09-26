@@ -73,7 +73,7 @@ Ví dụ:
 
 ### Bước 3: Quét mã vạch
 
-1. Đảm bảo **Zebra scanner** ở chế độ **USB HID Keyboard** hoặc **Bluetooth HID**
+1. Đảm bảo **Zebra scanner** ở chế độ **USB HID Keyboard** hoặc **Bluetooth HID Keyboard**
 2. Con trỏ sẽ tự động ở ô "Sẵn sàng quét"
 3. Quét mã vạch MSSV
 4. Hệ thống sẽ hiển thị thông báo:
@@ -143,6 +143,56 @@ Nếu scanner của bạn dùng **Web Serial** hoặc **WebUSB**, bạn cần co
 ✅ Đảm bảo file là .xlsx (không phải .xls cũ)  
 ✅ Sheet đầu tiên phải có dữ liệu  
 ✅ Phải có cột MSSV và Họ tên (tên cột linh hoạt)  
+
+## Offline Vietnamese TTS cho Random Picker
+
+Phiên bản server Python hiện tại có thể đọc tên sinh viên bằng Piper chạy hoàn toàn local. Random Picker ưu tiên WAV đã cache; nếu Piper chưa được cài hoặc phát audio local lỗi, hệ thống tự quay về giọng `speechSynthesis` của trình duyệt.
+
+### Cài TTS một lần
+
+Cần Internet cho đúng bước này. Trong thư mục Attendance trên Windows chạy:
+
+```powershell
+.\Setup-TTS.bat
+```
+
+Script tạo `.venv-tts` riêng, cài `piper-tts==1.8.0`, tải voice `vi_VN-vais1000-medium`, kiểm tra SHA-256 của model và chạy một smoke test. Piper không được cài vào Python chính của Attendance.
+
+Kiểm tra trạng thái bất kỳ lúc nào:
+
+```powershell
+.\Check-TTS.bat
+```
+
+Trạng thái sẵn sàng có dạng:
+
+```text
+Piper: READY
+Voice: vi_VN-vais1000-medium
+Runtime: OK
+Model: OK
+Cache: 42 WAV file(s)
+```
+
+### Chạy Attendance
+
+Dùng launcher Python canonical, có thể chọn port:
+
+```powershell
+.\Start-Server.bat 8080
+```
+
+Sau khi `Setup-TTS.bat` đã hoàn tất một lần, việc tạo và phát giọng tên sinh viên không cần Internet. Khi thêm, import hoặc cập nhật sinh viên thành công, server sẽ precache tên trong background. Lúc Random Picker gọi một sinh viên từ database, server trả WAV local; cache hit không chạy Piper lần nữa.
+
+Các dữ liệu local sau không được commit lên Git:
+
+```text
+.venv-tts/
+tts/voices/
+tts_cache/
+```
+
+Nếu TTS chưa sẵn sàng, Attendance vẫn khởi động và hoạt động; Random Picker dùng giọng trình duyệt làm fallback. Danh sách Excel nạp trực tiếp vào Random Picker cũng tiếp tục dùng fallback này vì không có định danh lớp/database.
 
 ## Liên hệ & Hỗ trợ
 
