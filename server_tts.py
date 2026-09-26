@@ -10,6 +10,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import tts_service
 
+PROJECT_DIR = Path(__file__).resolve().parent
+
 
 def _send_json_error(handler, code: str, status: int) -> None:
     handler.send_json({"error": code}, status)
@@ -54,6 +56,37 @@ def schedule_tts_precache(db_file):
     )
     thread.start()
     return thread
+
+
+def handle_random_picker_bundle(handler, raw_path: str, project_dir=PROJECT_DIR) -> bool:
+    """Serve random-picker.js with the local-TTS addon appended.
+
+    Both scan.html and random-picker.html already request random-picker.js. Serving
+    the addon through this canonical route avoids duplicating or rewriting those
+    large pages. If either source file is missing, return False so the legacy
+    static-file handler can serve the original asset unchanged.
+    """
+    if urlparse(raw_path).path != "/random-picker.js":
+        return False
+
+    root = Path(project_dir)
+    core_path = root / "random-picker.js"
+    addon_path = root / "random-picker-speech.js"
+    if not core_path.is_file() or not addon_path.is_file():
+        return False
+
+    try:
+        payload = core_path.read_bytes() + b"\n\n" + addon_path.read_bytes()
+    except OSError:
+        return False
+
+    handler.send_response(200)
+    handler.send_header("Content-Type", "application/javascript; charset=utf-8")
+    handler.send_header("Content-Length", str(len(payload)))
+    handler.send_header("Cache-Control", "no-cache")
+    handler.end_headers()
+    handler.wfile.write(payload)
+    return True
 
 
 def _send_wav(handler, wav_path: Path) -> None:
@@ -118,6 +151,8 @@ def install(server_module) -> None:
 
     handler_cls = server_module.AttendanceHandler
     db_file = server_module.DB_FILE
+    module_file = getattr(server_module, "__file__", None)
+    project_dir = Path(module_file).resolve().parent if module_file else PROJECT_DIR
 
     original_send_response = handler_cls.send_response
     original_do_get = handler_cls.do_GET
@@ -129,6 +164,8 @@ def install(server_module) -> None:
 
     @functools.wraps(original_do_get)
     def tts_do_get(self):
+        if handle_random_picker_bundle(self, self.path, project_dir):
+            return None
         if handle_tts_get(self, self.path, db_file):
             return None
         return original_do_get(self)
