@@ -131,6 +131,34 @@ class ServerTTSEndpointTests(unittest.TestCase):
         ensure.assert_called_once_with("Nguyễn Văn An")
 
 
+class ServerTTSFrontendBundleTests(unittest.TestCase):
+    def test_random_picker_bundle_appends_local_speech_addon(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "random-picker.js").write_text("class RandomPicker {}\n", encoding="utf-8")
+            (root / "random-picker-speech.js").write_text("/* local speech addon */\n", encoding="utf-8")
+            handler = FakeHandler()
+
+            handled = server_tts.handle_random_picker_bundle(
+                handler,
+                "/random-picker.js?v=123",
+                root,
+            )
+
+        self.assertTrue(handled)
+        self.assertEqual(handler.status, 200)
+        payload = handler.wfile.getvalue().decode("utf-8")
+        self.assertIn("class RandomPicker {}", payload)
+        self.assertIn("local speech addon", payload)
+        self.assertIn(("Content-Type", "application/javascript; charset=utf-8"), handler.headers_sent)
+
+    def test_non_random_picker_path_is_not_handled_by_bundle(self):
+        handler = FakeHandler()
+        handled = server_tts.handle_random_picker_bundle(handler, "/scan.html", Path("."))
+        self.assertFalse(handled)
+        self.assertIsNone(handler.status)
+
+
 class ServerTTSPrecacheTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
