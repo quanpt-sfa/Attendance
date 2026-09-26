@@ -77,8 +77,9 @@ class TTSWindowsScriptContractTests(unittest.TestCase):
         text = (ROOT / "Setup-TTS.bat").read_text(encoding="utf-8").lower()
         self.assertIn("piper-tts==1.8.0", text)
         self.assertIn(".venv-tts\\scripts\\python.exe", text)
-        self.assertIn("vi_vn-vais1000-medium.onnx", text)
-        self.assertIn("vi_vn-vais1000-medium.onnx.json", text)
+        self.assertIn('set "voice_id=vi_vn-vais1000-medium"', text)
+        self.assertIn('set "model_path=%voice_dir%\\%voice_id%.onnx"', text)
+        self.assertIn('set "config_path=%voice_dir%\\%voice_id%.onnx.json"', text)
         self.assertIn("resolve/%voice_revision%/vi/vi_vn/vais1000/medium", text)
         self.assertIn("voice_revision=v1.0.0", text)
         self.assertIn(
