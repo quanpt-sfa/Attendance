@@ -24,8 +24,8 @@ VOICE_DIR = PROJECT_DIR / "tts" / "voices"
 CACHE_DIR = PROJECT_DIR / "tts_cache"
 WORKER_SCRIPT = PROJECT_DIR / "tts_worker.py"
 
-VOICE_ID = "vi_VN-vais1000-medium"
-VOICE_REVISION = "piper-voices-v1.0.0"
+VOICE_ID = "calmwoman3688"
+VOICE_REVISION = "sannht-vi_voice-62e57b18157ed213b3863a7a8a35b14d3404554b"
 CACHE_FORMAT_VERSION = 1
 WORKER_TIMEOUT_SECONDS = 20.0
 
