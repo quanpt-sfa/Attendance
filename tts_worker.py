@@ -13,7 +13,9 @@ import wave
 from pathlib import Path
 from typing import Callable, TextIO
 
-DEFAULT_SMOKE_TEXT = "Xin chào"
+DEFAULT_SMOKE_TEXT = (
+    "Nguyễn Thị Thúy Quỳnh, Huỳnh Quốc Phước, Võ Trọng Nghĩa, Đặng Hoàng Yến."
+)
 
 
 def handle_request(request: dict, synthesize: Callable[[str, Path], None]) -> dict:
@@ -106,7 +108,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Attendance isolated Piper TTS worker")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--serve", action="store_true", help="Serve NDJSON requests on stdin/stdout")
-    mode.add_argument("--smoke-test", metavar="OUTPUT_WAV", help="Synthesize one short Vietnamese sample")
+    mode.add_argument("--smoke-test", metavar="OUTPUT_WAV", help="Synthesize Vietnamese student names")
     parser.add_argument("--model", required=True, help="Path to Piper .onnx model")
     parser.add_argument("--config", required=True, help="Path to matching .onnx.json config")
     return parser
