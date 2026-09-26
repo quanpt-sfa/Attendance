@@ -339,19 +339,22 @@ def build_session_sheet_rows(session_info, students_data):
     
     is_conf = bool(session_info.get('is_conference'))
     id_header = "Mã GV/SV" if is_conf else "MSSV"
+    class_header = "Đơn vị / Lớp" if is_conf else "Lớp"
     
     values = [
         [f"DANH SÁCH ĐIỂM DANH - {str(class_title).upper()}"],
         [f"Buổi {session_num} | Ngày: {session_date} | Tiết: {start_period}-{end_period} | Cập nhật lúc: {synced_at}"],
         [],
-        ["STT", id_header, "Họ và Tên", "Vào lớp", "Ra về", "Điểm cộng", "Ghi chú", "Lý do vắng", "Trạng thái"]
+        ["STT", id_header, "Họ và Tên", class_header, "Vào lớp", "Ra về", "Điểm cộng", "Ghi chú", "Lý do vắng", "Trạng thái"]
     ]
     
     for s in students_data:
+        class_col_val = s.get('class_name') or s.get('class_id') or ''
         values.append([
             s.get('stt', ''),
             s.get('student_id', ''),
             s.get('full_name', ''),
+            class_col_val,
             s.get('check_in', ''),
             s.get('check_out', ''),
             s.get('bonus_points', 0),
@@ -416,7 +419,7 @@ def build_session_format_requests(sheet_id):
                     'startRowIndex': 3,
                     'endRowIndex': 4,
                     'startColumnIndex': 0,
-                    'endColumnIndex': 9
+                    'endColumnIndex': 10
                 },
                 'cell': {
                     'userEnteredFormat': {
@@ -448,14 +451,14 @@ def build_session_format_requests(sheet_id):
                 'fields': 'pixelSize'
             }
         },
-        # Auto resize độ rộng cột A -> I
+        # Auto resize độ rộng cột A -> J
         {
             'autoResizeDimensions': {
                 'dimensions': {
                     'sheetId': sheet_id,
                     'dimension': 'COLUMNS',
                     'startIndex': 0,
-                    'endIndex': 9
+                    'endIndex': 10
                 }
             }
         }

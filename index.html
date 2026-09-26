@@ -1149,6 +1149,31 @@
             asc: true
         };
 
+        // ===== Tiện ích sắp xếp tiếng Việt chuẩn (Tên -> Họ & tên đệm -> Lớp -> MSSV) =====
+        function compareVietnameseStudents(a, b, asc = true) {
+            const getFirstName = s => (s.first_name || (s.full_name ? s.full_name.trim().split(' ').pop() : '')).trim();
+            const getLastName = s => (s.last_name || (s.full_name ? s.full_name.trim().split(' ').slice(0, -1).join(' ') : '')).trim();
+
+            const fnA = getFirstName(a);
+            const fnB = getFirstName(b);
+            let comp = fnA.localeCompare(fnB, 'vi', { sensitivity: 'base' });
+            if (comp !== 0) return asc ? comp : -comp;
+
+            const lnA = getLastName(a);
+            const lnB = getLastName(b);
+            comp = lnA.localeCompare(lnB, 'vi', { sensitivity: 'base' });
+            if (comp !== 0) return asc ? comp : -comp;
+
+            const clsA = (a.class_name || a.class_id || '').trim();
+            const clsB = (b.class_name || b.class_id || '').trim();
+            comp = clsA.localeCompare(clsB, 'vi', { sensitivity: 'base' });
+            if (comp !== 0) return asc ? comp : -comp;
+
+            const idA = String(a.student_id || a.id || '');
+            const idB = String(b.student_id || b.id || '');
+            return asc ? idA.localeCompare(idB) : idB.localeCompare(idA);
+        }
+
         // Sorting
         function sortData(dataSource, column) {
             let data = [];
@@ -1167,15 +1192,17 @@
                 sortState.asc = true;
             }
 
+            if (dataSource === 'students' && (column === 'stt' || column === 'first_name' || column === 'full_name' || !column)) {
+                data.sort((a, b) => compareVietnameseStudents(a, b, sortState.asc));
+                renderStudents(data);
+                updateSortIcons(dataSource);
+                return;
+            }
+
             if (column === 'stt') {
-                // Reset sort (default order logic could be implemented here)
                 sortState.column = null;
-                // Ideally we'd re-fetch or keep original order. 
-                // Simple hack: reverse if already default? No.
-                // Just do nothing or re-sort by ID?
-                // Let's assume ID sort.
                 column = (dataSource === 'classes') ? 'class_id' :
-                    (dataSource === 'students') ? 'student_id' : 'session_number';
+                    (dataSource === 'students') ? 'first_name' : 'session_number';
             }
 
             data.sort((a, b) => {
@@ -2215,6 +2242,7 @@
             }
 
             const students = await api(`/api/students?class_id=${classId}`) || [];
+            students.sort((a, b) => compareVietnameseStudents(a, b, true));
             currentStudents = students; // Store for sorting
             const isConf = isConferenceClass(classId);
             updateStudentTableHeaders(isConf);

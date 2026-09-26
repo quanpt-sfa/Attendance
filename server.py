@@ -20,6 +20,7 @@ from urllib.parse import urlparse, parse_qs, unquote
 import urllib.request
 import urllib.error
 from datetime import datetime, timedelta
+import unicodedata
 import google_service
 
 # Cấu hình
@@ -29,6 +30,67 @@ PHOTOS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'photos')
 
 # Đảm bảo thư mục photos tồn tại
 os.makedirs(PHOTOS_DIR, exist_ok=True)
+
+# ===== Tiện ích sắp xếp tiếng Việt chuẩn (Tên -> Họ & tên đệm -> Lớp -> MSSV) =====
+VIETNAMESE_ALPHABET = [
+    'a', 'à', 'á', 'ả', 'ã', 'ạ',
+    'ă', 'ằ', 'ắ', 'ẳ', 'ẵ', 'ặ',
+    'â', 'ầ', 'ấ', 'ẩ', 'ẫ', 'ậ',
+    'b', 'c', 'd', 'đ',
+    'e', 'è', 'é', 'ẻ', 'ẽ', 'ẹ',
+    'ê', 'ề', 'ế', 'ể', 'ễ', 'ệ',
+    'f', 'g', 'h',
+    'i', 'ì', 'í', 'ỉ', 'ĩ', 'ị',
+    'j', 'k', 'l', 'm', 'n',
+    'o', 'ò', 'ó', 'ỏ', 'õ', 'ọ',
+    'ô', 'ồ', 'ố', 'ổ', 'ỗ', 'ộ',
+    'ơ', 'ờ', 'ớ', 'ở', 'ỡ', 'ợ',
+    'p', 'q', 'r', 's', 't',
+    'u', 'ù', 'ú', 'ủ', 'ũ', 'ụ',
+    'ư', 'ừ', 'ứ', 'ử', 'ữ', 'ự',
+    'v', 'w', 'x',
+    'y', 'ỳ', 'ý', 'ỷ', 'ỹ', 'ỵ',
+    'z'
+]
+VI_CHAR_ORDER = {ch: i for i, ch in enumerate(VIETNAMESE_ALPHABET)}
+
+def vi_char_sort_key(text):
+    text = unicodedata.normalize('NFC', str(text or '').lower().strip())
+    return [VI_CHAR_ORDER.get(ch, ord(ch) + 1000) for ch in text]
+
+def vietnamese_student_sort_key(s):
+    """
+    Sắp xếp chuẩn danh sách sinh viên theo thứ tự giáo dục Việt Nam:
+    1. Tên (first_name)
+    2. Họ & tên đệm (last_name)
+    3. Tên lớp / Lớp (class_name hoặc class_id)
+    4. MSSV (student_id)
+    """
+    first_name = (s.get('first_name') or '').strip()
+    last_name = (s.get('last_name') or '').strip()
+    full_name = (s.get('full_name') or s.get('name') or '').strip()
+
+    if not first_name and full_name:
+        parts = full_name.split()
+        first_name = parts[-1] if parts else ''
+        last_name = ' '.join(parts[:-1]) if len(parts) > 1 else ''
+    elif not last_name and full_name and first_name:
+        if full_name.endswith(first_name):
+            last_name = full_name[:-len(first_name)].strip()
+
+    class_key = str(s.get('class_name') or s.get('class_id') or s.get('className') or '').strip().lower()
+    student_id = str(s.get('student_id') or s.get('id') or '').strip().lower()
+
+    return (
+        vi_char_sort_key(first_name),
+        vi_char_sort_key(last_name),
+        class_key,
+        student_id
+    )
+
+def sort_vietnamese_students(students_list):
+    """Sắp xếp danh sách sinh viên theo thứ tự chuẩn Việt Nam: Tên -> Họ -> Lớp -> MSSV"""
+    return sorted(students_list, key=vietnamese_student_sort_key)
 
 
 def init_database():
@@ -989,7 +1051,9 @@ class AttendanceHandler(SimpleHTTPRequestHandler):
             self.send_error_json(f'Không thể kết nối đến Google Sheet: {str(e)}', 500)
 
     def _extract_session_students_payload(self, cursor, session_id, class_students):
-        """Trích xuất dữ liệu điểm danh của một buổi học theo danh sách sinh viên lớp"""
+        """Trích xuất dữ liệu điểm danh của một buổi học theo danh sách sinh viên lớp, sắp xếp chuẩn Việt Nam"""
+        class_students = sort_vietnamese_students(class_students)
+
         cursor.execute('SELECT * FROM checkins WHERE session_id = ?', (session_id,))
         checkins = [dict(r) for r in cursor.fetchall()]
 
@@ -1027,7 +1091,11 @@ class AttendanceHandler(SimpleHTTPRequestHandler):
             payload.append({
                 'stt': idx + 1,
                 'student_id': sid,
+                'last_name': s.get('last_name', ''),
+                'first_name': s.get('first_name', ''),
                 'full_name': full_name,
+                'class_id': s.get('class_id', ''),
+                'class_name': s.get('class_name', ''),
                 'role': 'Giảng viên' if s.get('is_lecturer') else 'Sinh viên',
                 'check_in': chk.get('in', ''),
                 'check_out': chk.get('out', ''),
@@ -1065,8 +1133,13 @@ class AttendanceHandler(SimpleHTTPRequestHandler):
                 return
 
             class_id = session['class_id']
-            cursor.execute('SELECT * FROM students WHERE class_id = ? ORDER BY student_id', (class_id,))
-            students = [dict(r) for r in cursor.fetchall()]
+            cursor.execute('''
+                SELECT s.*, c.class_name, c.credit_class_id
+                FROM students s
+                LEFT JOIN classes c ON s.class_id = c.class_id
+                WHERE s.class_id = ?
+            ''', (class_id,))
+            students = sort_vietnamese_students([dict(r) for r in cursor.fetchall()])
 
             # 1. Kiểm tra xem link này có đang bị trùng với lớp khác trong database không
             target_sheet_id = google_service.extract_spreadsheet_id(google_sheet_url)
@@ -1188,8 +1261,13 @@ class AttendanceHandler(SimpleHTTPRequestHandler):
                 self.send_error_json('Không tìm thấy buổi học nào trong lớp này', 404)
                 return
 
-            cursor.execute('SELECT * FROM students WHERE class_id = ? ORDER BY student_id', (class_id,))
-            students = [dict(r) for r in cursor.fetchall()]
+            cursor.execute('''
+                SELECT s.*, c.class_name, c.credit_class_id
+                FROM students s
+                LEFT JOIN classes c ON s.class_id = c.class_id
+                WHERE s.class_id = ?
+            ''', (class_id,))
+            students = sort_vietnamese_students([dict(r) for r in cursor.fetchall()])
 
             # 1. Kiểm tra xem link này có đang bị trùng với lớp khác trong database không
             target_sheet_id = google_service.extract_spreadsheet_id(google_sheet_url)
@@ -1429,7 +1507,7 @@ class AttendanceHandler(SimpleHTTPRequestHandler):
     # ===== Students API =====
     
     def get_students(self, class_id):
-        """Lấy danh sách sinh viên của lớp"""
+        """Lấy danh sách sinh viên của lớp, sắp xếp chuẩn Việt Nam: Tên -> Họ -> Lớp -> MSSV"""
         if not class_id:
             self.send_json([])
             return
@@ -1438,12 +1516,16 @@ class AttendanceHandler(SimpleHTTPRequestHandler):
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT * FROM students WHERE class_id = ? ORDER BY full_name
+            SELECT s.*, c.class_name, c.credit_class_id
+            FROM students s
+            LEFT JOIN classes c ON s.class_id = c.class_id
+            WHERE s.class_id = ?
         ''', (class_id,))
         rows = cursor.fetchall()
         conn.close()
         
         students = [dict(row) for row in rows]
+        students = sort_vietnamese_students(students)
         self.send_json(students)
     
     def create_student(self):
@@ -1963,9 +2045,10 @@ class AttendanceHandler(SimpleHTTPRequestHandler):
         cursor = conn.cursor()
         
         cursor.execute('''
-            SELECT c.*, s.full_name as name, s.photo_path
+            SELECT c.*, s.full_name as name, s.photo_path, s.first_name, s.last_name, s.class_id, cl.class_name
             FROM checkins c
             LEFT JOIN students s ON c.student_id = s.student_id AND c.class_id = s.class_id
+            LEFT JOIN classes cl ON s.class_id = cl.class_id
             WHERE c.session_id = ?
             ORDER BY c.check_time DESC
         ''', (session_id,))
@@ -2226,9 +2309,15 @@ class AttendanceHandler(SimpleHTTPRequestHandler):
         
         if row:
             class_id = row[0]
-            cursor.execute('SELECT student_id as id, full_name as name, class_id as className FROM students WHERE class_id = ?', (class_id,))
+            cursor.execute('''
+                SELECT s.student_id as id, s.full_name as name, s.class_id as className,
+                       s.first_name, s.last_name, c.class_name
+                FROM students s
+                LEFT JOIN classes c ON s.class_id = c.class_id
+                WHERE s.class_id = ?
+            ''', (class_id,))
             rows = cursor.fetchall()
-            roster = [dict(row) for row in rows]
+            roster = sort_vietnamese_students([dict(row) for row in rows])
         else:
             roster = []
         

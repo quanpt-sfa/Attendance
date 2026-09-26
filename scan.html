@@ -652,8 +652,13 @@
 
     <!-- Right Panel: Attendance List -->
     <div class="card">
-      <div class="card-header">
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
         <div class="card-title">Danh sách điểm danh</div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-size:12px; color:var(--text-muted);">Sắp xếp:</span>
+          <button id="btnSortName" class="btn small primary" onclick="setListSortMode('name')" title="Sắp xếp theo thứ tự chuẩn Việt Nam: Tên -> Họ & tên đệm -> Lớp -> MSSV">🔤 Tên A-Z</button>
+          <button id="btnSortTime" class="btn small" onclick="setListSortMode('time')" title="Sắp xếp theo thứ tự thời gian vừa quét mới nhất">⏱️ Mới quét</button>
+        </div>
       </div>
 
       <div class="tabs">
@@ -898,8 +903,50 @@
         setMode(currentMode);
       }
 
+      // ===== Tiện ích sắp xếp tiếng Việt chuẩn (Tên -> Họ & tên đệm -> Lớp -> MSSV) =====
+      function compareVietnameseStudents(a, b) {
+        const getFirstName = s => (s.first_name || (s.full_name ? s.full_name.trim().split(' ').pop() : (s.name ? s.name.trim().split(' ').pop() : ''))).trim();
+        const getLastName = s => (s.last_name || (s.full_name ? s.full_name.trim().split(' ').slice(0, -1).join(' ') : (s.name ? s.name.trim().split(' ').slice(0, -1).join(' ') : ''))).trim();
+
+        const fnA = getFirstName(a);
+        const fnB = getFirstName(b);
+        const fnComp = fnA.localeCompare(fnB, 'vi', { sensitivity: 'base' });
+        if (fnComp !== 0) return fnComp;
+
+        const lnA = getLastName(a);
+        const lnB = getLastName(b);
+        const lnComp = lnA.localeCompare(lnB, 'vi', { sensitivity: 'base' });
+        if (lnComp !== 0) return lnComp;
+
+        const clsA = (a.class_name || a.class_id || '').trim();
+        const clsB = (b.class_name || b.class_id || '').trim();
+        const clsComp = clsA.localeCompare(clsB, 'vi', { sensitivity: 'base' });
+        if (clsComp !== 0) return clsComp;
+
+        return String(a.student_id || a.id || '').localeCompare(String(b.student_id || b.id || ''));
+      }
+
+      let listSortMode = 'name'; // 'name' = chuẩn Tên -> Họ -> Lớp -> MSSV, 'time' = mới quét trước
+
+      window.setListSortMode = function(mode) {
+        listSortMode = mode;
+        const btnName = document.getElementById('btnSortName');
+        const btnTime = document.getElementById('btnSortTime');
+        if (btnName && btnTime) {
+          if (mode === 'name') {
+            btnName.className = 'btn small primary';
+            btnTime.className = 'btn small';
+          } else {
+            btnName.className = 'btn small';
+            btnTime.className = 'btn small primary';
+          }
+        }
+        updateUI();
+      };
+
       async function loadStudents() {
         students = await api(`/api/students?class_id=${currentSession.class_id}`) || [];
+        students.sort(compareVietnameseStudents);
       }
 
       async function loadCheckins() {
@@ -936,14 +983,26 @@
           : '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:rgba(34,197,94,0.15);color:#4ade80;margin-left:6px;">👨‍🎓 SV</span>';
       }
 
+      function getClassBadge(studentId) {
+        const s = students.find(st => st.student_id === studentId);
+        const cls = s ? (s.class_name || s.class_id || '') : '';
+        if (!cls) return '';
+        return `<span style="display:inline-block;padding:1px 6px;border-radius:6px;font-size:11px;background:rgba(148,163,184,0.15);color:var(--text-muted);margin-left:6px;" title="Lớp">${escapeHtml(cls)}</span>`;
+      }
+
       function renderCheckinList(checkedIn) {
         const checkedInIds = new Set(checkedIn.map(c => c.student_id));
-        const notCheckedIn = students.filter(s => !checkedInIds.has(s.student_id));
+        const notCheckedIn = students.filter(s => !checkedInIds.has(s.student_id)).sort(compareVietnameseStudents);
 
         // Separate students with reasons from those without
         const absenceMap = new Map(absences.map(a => [a.student_id, a.reason]));
         const withReason = notCheckedIn.filter(s => absenceMap.has(s.student_id));
         const withoutReason = notCheckedIn.filter(s => !absenceMap.has(s.student_id));
+
+        // Danh sách đã vào lớp: sắp xếp theo chế độ được chọn
+        const displayCheckedIn = listSortMode === 'name'
+          ? [...checkedIn].sort(compareVietnameseStudents)
+          : checkedIn;
 
         const checkinLabel = isConference ? 'Đã tham dự' : 'Đã vào lớp';
         const notCheckinLabel = isConference ? 'Chưa tham dự' : 'Chưa vào lớp';
@@ -952,9 +1011,9 @@
 
         let html = '';
 
-        if (checkedIn.length > 0) {
-          html += `<div class="section-header success">✅ ${checkinLabel} (${checkedIn.length})</div>`;
-          html += checkedIn.map(c => {
+        if (displayCheckedIn.length > 0) {
+          html += `<div class="section-header success">✅ ${checkinLabel} (${displayCheckedIn.length})</div>`;
+          html += displayCheckedIn.map(c => {
             const points = c.bonus_points || 0;
             const reason = c.bonus_reason || '';
             let bonusHtml = '';
@@ -974,7 +1033,7 @@
                    src="${c.photo_path ? '/photos/' + c.photo_path : ''}"
                    onerror="this.style.display='none'" alt="">
               <div class="student-details">
-                <div class="student-id">${escapeHtml(c.student_id)}${getRoleBadge(c.student_id)} ${bonusHtml}</div>
+                <div class="student-id">${escapeHtml(c.student_id)}${getRoleBadge(c.student_id)}${getClassBadge(c.student_id)} ${bonusHtml}</div>
                 <div class="student-name">${escapeHtml(c.name || '')}</div>
               </div>
               <div class="check-time">✅ ${escapeHtml(c.check_time)}</div>
@@ -994,7 +1053,7 @@
                    src="${s.photo_path ? '/photos/' + s.photo_path : ''}"
                    onerror="this.style.display='none'" alt="">
               <div class="student-details">
-                <div class="student-id">${escapeHtml(s.student_id)}${getRoleBadge(s.student_id)}</div>
+                <div class="student-id">${escapeHtml(s.student_id)}${getRoleBadge(s.student_id)}${getClassBadge(s.student_id)}</div>
                 <div class="student-name">${escapeHtml(s.full_name || '')}</div>
               </div>
               <div class="reason-badge" onclick="openAbsenceModal('${s.student_id}', '${escapeHtml(s.full_name || '')}')">
@@ -1013,7 +1072,7 @@
                    src="${s.photo_path ? '/photos/' + s.photo_path : ''}"
                    onerror="this.style.display='none'" alt="">
               <div class="student-details">
-                <div class="student-id">${escapeHtml(s.student_id)}${getRoleBadge(s.student_id)}</div>
+                <div class="student-id">${escapeHtml(s.student_id)}${getRoleBadge(s.student_id)}${getClassBadge(s.student_id)}</div>
                 <div class="student-name">${escapeHtml(s.full_name || '')}</div>
               </div>
               <button class="btn btn-action btn-reason" onclick="openAbsenceModal('${s.student_id}', '${escapeHtml(s.full_name || '')}')">📝 Lý do</button>
@@ -1031,19 +1090,24 @@
 
       function renderCheckoutList(checkedOut, checkedIn) {
         const checkedOutIds = new Set(checkedOut.map(c => c.student_id));
-        const notCheckedOut = checkedIn.filter(c => !checkedOutIds.has(c.student_id));
+        const notCheckedOut = checkedIn.filter(c => !checkedOutIds.has(c.student_id)).sort(compareVietnameseStudents);
+
+        // Danh sách đã ra về: sắp xếp theo chế độ được chọn
+        const displayCheckedOut = listSortMode === 'name'
+          ? [...checkedOut].sort(compareVietnameseStudents)
+          : checkedOut;
 
         let html = '';
 
-        if (checkedOut.length > 0) {
-          html += `<div class="section-header success">🚪 Đã ra về (${checkedOut.length})</div>`;
-          html += checkedOut.map(c => `
+        if (displayCheckedOut.length > 0) {
+          html += `<div class="section-header success">🚪 Đã ra về (${displayCheckedOut.length})</div>`;
+          html += displayCheckedOut.map(c => `
             <div class="attendance-item">
               <img class="student-photo" 
                    src="${c.photo_path ? '/photos/' + c.photo_path : ''}"
                    onerror="this.style.display='none'" alt="">
               <div class="student-details">
-                <div class="student-id">${escapeHtml(c.student_id)}${getRoleBadge(c.student_id)}</div>
+                <div class="student-id">${escapeHtml(c.student_id)}${getRoleBadge(c.student_id)}${getClassBadge(c.student_id)}</div>
                 <div class="student-name">${escapeHtml(c.name || '')}</div>
               </div>
               <div class="check-time">🚪 ${escapeHtml(c.check_time)}</div>
@@ -1060,7 +1124,7 @@
                    src="${c.photo_path ? '/photos/' + c.photo_path : ''}"
                    onerror="this.style.display='none'" alt="">
               <div class="student-details">
-                <div class="student-id">${escapeHtml(c.student_id)}${getRoleBadge(c.student_id)}</div>
+                <div class="student-id">${escapeHtml(c.student_id)}${getRoleBadge(c.student_id)}${getClassBadge(c.student_id)}</div>
                 <div class="student-name">${escapeHtml(c.name || '')}</div>
               </div>
               <button class="btn btn-action" style="background:var(--danger)" onclick="manualCheckin('${c.student_id}', 'out')">🚪 Ra về</button>
