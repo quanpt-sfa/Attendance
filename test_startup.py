@@ -1,7 +1,10 @@
 import os
 import sqlite3
+import sys
 import tempfile
+import types
 import unittest
+from unittest import mock
 
 import startup
 from db_schema import SCHEMA_VERSION
@@ -36,6 +39,23 @@ class StartupSchemaTests(unittest.TestCase):
             conn = sqlite3.connect(db_path)
             self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0], SCHEMA_VERSION)
             conn.close()
+
+    def test_main_installs_tts_extension_before_running_server(self):
+        calls = []
+        fake_server = types.SimpleNamespace(
+            init_database=lambda: None,
+            DB_FILE='unused.db',
+            PORT=8000,
+            run_server=lambda: calls.append('run'),
+        )
+        fake_tts = types.SimpleNamespace(install=lambda module: calls.append(('install', module)))
+
+        with mock.patch.dict(sys.modules, {'server': fake_server, 'server_tts': fake_tts}):
+            startup.main(['8080'])
+
+        self.assertEqual(fake_server.PORT, 8080)
+        self.assertEqual(calls[0], ('install', fake_server))
+        self.assertEqual(calls[1], 'run')
 
 
 if __name__ == '__main__':
