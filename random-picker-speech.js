@@ -135,7 +135,8 @@
         proto.setStudents = function (studentList) {
             const source = Array.isArray(studentList) ? studentList : [];
             const result = originalSetStudents.call(this, studentList);
-            const databaseSource = this.activeSource !== 'excel';
+            const isExcelSource = this.activeSource === 'excel' || source === this.excelStudents;
+            const databaseSource = !isExcelSource;
             (this.students || []).forEach((student, index) => {
                 const raw = source[index] || {};
                 student.classId = raw.classId || raw.class_id || student.classId || '';
