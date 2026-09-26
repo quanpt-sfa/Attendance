@@ -41,6 +41,7 @@ def main(argv=None):
     port = _parse_port(argv[0]) if argv else 8000
 
     import server
+    import server_tts
 
     original_init_database = server.init_database
 
@@ -53,6 +54,7 @@ def main(argv=None):
 
     server.init_database = versioned_init_database
     server.PORT = port
+    server_tts.install(server)
     server.run_server()
 
 
