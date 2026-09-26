@@ -302,4 +302,29 @@ def ensure_audio(text: str) -> Path:
                 pass
 
 
+def precache_students(students: list[dict]) -> dict:
+    """Best-effort cache generation for unique non-empty student names."""
+    unique = []
+    seen = set()
+    for student in students or []:
+        record = student or {}
+        name = normalize_text(record.get("full_name") or record.get("fullName") or "")
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        unique.append(name)
+
+    result = {"total": len(unique), "generated": 0, "cached": 0, "failed": 0}
+    for name in unique:
+        if get_cached_audio(name) is not None:
+            result["cached"] += 1
+            continue
+        try:
+            ensure_audio(name)
+            result["generated"] += 1
+        except (TTSUnavailableError, TTSSynthesisError, ValueError):
+            result["failed"] += 1
+    return result
+
+
 atexit.register(shutdown_worker)
