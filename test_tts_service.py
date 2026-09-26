@@ -37,6 +37,13 @@ class TTSServicePureTests(unittest.TestCase):
             changed = tts_service.cache_key("Nguyễn Thị An")
         self.assertNotEqual(original, changed)
 
+    def test_default_voice_is_pinned_nghi_tts_vietnamese_voice(self):
+        self.assertEqual(tts_service.VOICE_ID, "calmwoman3688")
+        self.assertEqual(
+            tts_service.VOICE_REVISION,
+            "sannht-vi_voice-62e57b18157ed213b3863a7a8a35b14d3404554b",
+        )
+
 
 class TTSServiceCacheTests(unittest.TestCase):
     def setUp(self):
@@ -166,7 +173,7 @@ class TTSServiceStatusTests(unittest.TestCase):
         self.assertFalse(status["available"])
         self.assertFalse(status["runtime_present"])
         self.assertFalse(status["model_present"])
-        self.assertEqual(status["voice"], "vi_VN-vais1000-medium")
+        self.assertEqual(status["voice"], "calmwoman3688")
         self.assertEqual(status["cache_files"], 0)
 
 
