@@ -11,6 +11,7 @@ __pycache__/
 # Local TTS Runtime & Cache
 .venv-tts/
 tts/voices/
+tts/runtime/
 tts_cache/
 
 # Local Data & Photos
