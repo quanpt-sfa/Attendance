@@ -113,6 +113,18 @@ def validate_nghi_payload(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(
             f"NGHI audit returned {len(cases)} cases; expected {len(TEST_SENTENCES)}"
         )
+
+    for case_index, case in enumerate(cases, start=1):
+        chunks = case.get("chunks") if isinstance(case, dict) else None
+        if not isinstance(chunks, list):
+            raise ValueError(f"NGHI audit case {case_index} is missing chunks")
+        for chunk_index, chunk in enumerate(chunks, start=1):
+            ids = chunk.get("phoneme_ids") if isinstance(chunk, dict) else None
+            if not isinstance(ids, list) or any(type(value) is not int for value in ids):
+                raise ValueError(
+                    "NGHI phoneme_ids must be a scalar integer sequence matching the "
+                    f"ONNX int64 tensor (case {case_index}, chunk {chunk_index})"
+                )
     return payload
 
 
