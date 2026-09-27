@@ -18,6 +18,7 @@ import wave
 from pathlib import Path
 from typing import Callable, TextIO
 
+DEFAULT_SENTENCE_SILENCE_SECONDS = 0.45
 DEFAULT_SMOKE_TEXT = (
     "Nguyễn Thị THÚY QUỲNH, HUỲNH QUỐC PHƯỚC, VÕ TRỌNG NGHĨA, ĐẶNG HOÀNG YẾN."
 )
@@ -178,6 +179,8 @@ class NativePiperSynthesizer:
             "--config",
             str(self.config_path),
             "--json-input",
+            "--sentence-silence",
+            str(DEFAULT_SENTENCE_SILENCE_SECONDS),
             "--quiet",
         ]
         kwargs = {
