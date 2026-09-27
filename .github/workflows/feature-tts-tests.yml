@@ -27,6 +27,7 @@ jobs:
           python -m py_compile startup.py tts_service.py tts_worker.py server_tts.py
           python -m unittest test_db_schema test_startup -v
           python -m unittest test_tts_service test_tts_worker test_server_tts test_tts_integration -v
+          python -m unittest test_tts_audit -v
       - name: JavaScript syntax and regression tests
         shell: bash
         run: |
