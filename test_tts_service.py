@@ -44,8 +44,8 @@ class TTSServicePureTests(unittest.TestCase):
             "sannht-vi_voice-62e57b18157ed213b3863a7a8a35b14d3404554b",
         )
 
-    def test_cache_format_is_bumped_after_utf8_worker_protocol_fix(self):
-        self.assertEqual(tts_service.CACHE_FORMAT_VERSION, 4)
+    def test_cache_format_is_bumped_after_sentence_pause_change(self):
+        self.assertEqual(tts_service.CACHE_FORMAT_VERSION, 5)
 
 
 class TTSServiceCacheTests(unittest.TestCase):
