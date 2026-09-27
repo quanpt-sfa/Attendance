@@ -31,6 +31,7 @@ WORKER_SCRIPT = PROJECT_DIR / "tts_worker.py"
 VOICE_ID = "calmwoman3688"
 VOICE_REVISION = "sannht-vi_voice-62e57b18157ed213b3863a7a8a35b14d3404554b"
 CACHE_FORMAT_VERSION = 5
+RENDER_REVISION = "physical-sentence-pause-v1"
 WORKER_TIMEOUT_SECONDS = 20.0
 
 VOICE_MODEL_NAME = f"{VOICE_ID}.onnx"
@@ -63,6 +64,7 @@ def cache_key(text: str) -> str:
         f"{CACHE_FORMAT_VERSION}\n"
         f"{VOICE_ID}\n"
         f"{VOICE_REVISION}\n"
+        f"{RENDER_REVISION}\n"
         f"{normalized}"
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
