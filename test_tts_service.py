@@ -44,8 +44,8 @@ class TTSServicePureTests(unittest.TestCase):
             "sannht-vi_voice-62e57b18157ed213b3863a7a8a35b14d3404554b",
         )
 
-    def test_cache_format_is_bumped_after_native_backend_switch(self):
-        self.assertEqual(tts_service.CACHE_FORMAT_VERSION, 3)
+    def test_cache_format_is_bumped_after_utf8_worker_protocol_fix(self):
+        self.assertEqual(tts_service.CACHE_FORMAT_VERSION, 4)
 
 
 class TTSServiceCacheTests(unittest.TestCase):
@@ -178,6 +178,34 @@ class TTSServiceStatusTests(unittest.TestCase):
         self.assertFalse(status["model_present"])
         self.assertEqual(status["voice"], "calmwoman3688")
         self.assertEqual(status["cache_files"], 0)
+
+
+class TTSWorkerLaunchTests(unittest.TestCase):
+    def tearDown(self):
+        tts_service.shutdown_worker()
+
+    def test_worker_process_forces_utf8_standard_streams(self):
+        class FakeProcess:
+            stdin = None
+            stdout = []
+
+            def poll(self):
+                return 0
+
+        fake_process = FakeProcess()
+        existing_script = Path(__file__).resolve()
+        with (
+            mock.patch.object(tts_service, "_runtime_state", return_value=(True, True)),
+            mock.patch.object(tts_service, "WORKER_SCRIPT", existing_script),
+            mock.patch.object(tts_service, "_worker_python", return_value=Path("python")),
+            mock.patch.object(tts_service, "_voice_model", return_value=Path("voice.onnx")),
+            mock.patch.object(tts_service, "_voice_config", return_value=Path("voice.onnx.json")),
+            mock.patch.object(tts_service.subprocess, "Popen", return_value=fake_process) as popen,
+        ):
+            tts_service._start_worker_locked()
+
+        env = popen.call_args.kwargs["env"]
+        self.assertEqual(env["PYTHONIOENCODING"], "utf-8:strict")
 
 
 if __name__ == "__main__":
