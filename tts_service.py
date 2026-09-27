@@ -30,7 +30,7 @@ WORKER_SCRIPT = PROJECT_DIR / "tts_worker.py"
 
 VOICE_ID = "calmwoman3688"
 VOICE_REVISION = "sannht-vi_voice-62e57b18157ed213b3863a7a8a35b14d3404554b"
-CACHE_FORMAT_VERSION = 3
+CACHE_FORMAT_VERSION = 4
 WORKER_TIMEOUT_SECONDS = 20.0
 
 VOICE_MODEL_NAME = f"{VOICE_ID}.onnx"
@@ -193,6 +193,9 @@ def _start_worker_locked():
     if os.name == "nt":
         command.extend(["--native-piper", str(NATIVE_PIPER)])
 
+    worker_env = os.environ.copy()
+    worker_env["PYTHONIOENCODING"] = "utf-8:strict"
+
     result_queue = queue.Queue()
     try:
         process = subprocess.Popen(
@@ -204,6 +207,7 @@ def _start_worker_locked():
             encoding="utf-8",
             bufsize=1,
             cwd=str(PROJECT_DIR),
+            env=worker_env,
         )
     except OSError as exc:
         raise TTSUnavailableError(f"Cannot start offline TTS worker: {exc}") from exc
