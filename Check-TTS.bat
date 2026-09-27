@@ -16,7 +16,7 @@ if not defined PYTHON_CMD (
     exit /b 1
 )
 
-%PYTHON_CMD% -c "import tts_service; s=tts_service.get_status(); print('Piper: ' + ('READY' if s['available'] else 'NOT READY')); print('Voice: ' + s['voice']); print('Runtime: ' + ('OK' if s['runtime_present'] else 'MISSING')); print('Model: ' + ('OK' if s['model_present'] else 'MISSING')); print('Cache: ' + str(s['cache_files']) + ' WAV file(s)')"
+%PYTHON_CMD% -c "import tts_service; s=tts_service.get_status(); print('Piper: ' + ('READY' if s['available'] else 'NOT READY')); print('Voice: ' + s['voice']); print('Backend: ' + s['backend']); print('Runtime: ' + ('OK' if s['runtime_present'] else 'MISSING')); print('Model: ' + ('OK' if s['model_present'] else 'MISSING')); print('Cache: ' + str(s['cache_files']) + ' WAV file(s)')"
 set "RC=%ERRORLEVEL%"
 
 echo.
