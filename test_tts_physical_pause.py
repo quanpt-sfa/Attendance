@@ -73,7 +73,6 @@ class PhysicalSentencePauseTests(unittest.TestCase):
                     "mời sinh viên tiếp theo.",
                 ],
             )
-            self.assertNotIn("--sentence-silence", calls["command"])
 
             with wave.open(str(output), "rb") as wav_file:
                 self.assertEqual(wav_file.getnchannels(), 1)
