@@ -110,7 +110,7 @@ class PiperSynthesizerTests(unittest.TestCase):
 
 
 class NativePiperSynthesizerTests(unittest.TestCase):
-    def test_native_process_uses_utf8_json_input_and_reuses_loaded_model(self):
+    def test_native_process_uses_utf8_json_input_reuses_model_and_pins_sentence_pause(self):
         calls = {"starts": 0, "writes": []}
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -161,6 +161,13 @@ class NativePiperSynthesizerTests(unittest.TestCase):
             self.assertEqual(calls["starts"], 1)
             self.assertIn("--json-input", calls["command"])
             self.assertIn("--quiet", calls["command"])
+            self.assertIn("--sentence-silence", calls["command"])
+            silence_index = calls["command"].index("--sentence-silence")
+            self.assertEqual(
+                calls["command"][silence_index + 1],
+                str(tts_worker.DEFAULT_SENTENCE_SILENCE_SECONDS),
+            )
+            self.assertEqual(tts_worker.DEFAULT_SENTENCE_SILENCE_SECONDS, 0.45)
             first = json.loads(calls["writes"][0])
             second = json.loads(calls["writes"][1])
             self.assertEqual(first["text"], "huỳnh quốc phước")
