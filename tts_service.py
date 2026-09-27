@@ -1,7 +1,9 @@
 """Offline Vietnamese TTS cache/service boundary for Attendance.
 
 The main Attendance process never imports Piper. Synthesis is delegated to
-``tts_worker.py`` running under the isolated ``.venv-tts`` interpreter.
+``tts_worker.py`` running under the isolated ``.venv-tts`` interpreter. On
+Windows, that worker uses the bundled native Piper executable so Vietnamese
+phonemization does not depend on Python ``espeakbridge``.
 """
 
 from __future__ import annotations
@@ -21,6 +23,8 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parent
 TTS_VENV = PROJECT_DIR / ".venv-tts"
 VOICE_DIR = PROJECT_DIR / "tts" / "voices"
+TTS_RUNTIME_DIR = PROJECT_DIR / "tts" / "runtime"
+NATIVE_PIPER = TTS_RUNTIME_DIR / "piper" / "piper.exe"
 CACHE_DIR = PROJECT_DIR / "tts_cache"
 WORKER_SCRIPT = PROJECT_DIR / "tts_worker.py"
 
@@ -104,6 +108,8 @@ def get_cached_audio(text: str) -> Path | None:
 
 def _runtime_state() -> tuple[bool, bool]:
     runtime_present = _worker_python().is_file()
+    if os.name == "nt":
+        runtime_present = runtime_present and NATIVE_PIPER.is_file()
     model_present = _voice_model().is_file() and _voice_config().is_file()
     return runtime_present, model_present
 
@@ -118,6 +124,7 @@ def get_status() -> dict:
         "available": bool(runtime_present and model_present and WORKER_SCRIPT.is_file()),
         "voice": VOICE_ID,
         "voice_revision": VOICE_REVISION,
+        "backend": "native-piper" if os.name == "nt" else "python-piper",
         "runtime_present": runtime_present,
         "model_present": model_present,
         "cache_files": cache_files,
@@ -174,18 +181,22 @@ def _start_worker_locked():
             "Offline TTS is not installed. Run Setup-TTS.bat once while online."
         )
 
+    command = [
+        str(_worker_python()),
+        str(WORKER_SCRIPT),
+        "--serve",
+        "--model",
+        str(_voice_model()),
+        "--config",
+        str(_voice_config()),
+    ]
+    if os.name == "nt":
+        command.extend(["--native-piper", str(NATIVE_PIPER)])
+
     result_queue = queue.Queue()
     try:
         process = subprocess.Popen(
-            [
-                str(_worker_python()),
-                str(WORKER_SCRIPT),
-                "--serve",
-                "--model",
-                str(_voice_model()),
-                "--config",
-                str(_voice_config()),
-            ],
+            command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=None,
@@ -225,7 +236,7 @@ def _request_worker_locked(text: str, output_path: Path) -> None:
     try:
         process.stdin.write(json.dumps(request, ensure_ascii=False) + "\n")
         process.stdin.flush()
-    except (BrokenPipeError, OSError) as exc:
+    except (BrokenPipeError, OSError, UnicodeError) as exc:
         raise TTSSynthesisError(f"Offline TTS worker pipe failed: {exc}") from exc
 
     try:
