@@ -13,6 +13,8 @@ __pycache__/
 tts/voices/
 tts/runtime/
 tts_cache/
+.tts-audit/
+tts_audit_output/
 
 # Local Data & Photos
 *.xlsx
