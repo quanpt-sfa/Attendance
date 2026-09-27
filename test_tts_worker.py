@@ -201,6 +201,7 @@ class TTSWindowsScriptContractTests(unittest.TestCase):
         self.assertIn("tts_service.get_status", text)
         self.assertIn("piper:", text)
         self.assertIn("voice:", text)
+        self.assertIn("backend:", text)
         self.assertIn("cache:", text)
         for forbidden in (
             "pip install",
