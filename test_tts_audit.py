@@ -1,7 +1,4 @@
-import json
-import tempfile
 import unittest
-from pathlib import Path
 
 from tools import tts_phoneme_audit as audit
 
@@ -68,6 +65,25 @@ class TTSAuditContractTests(unittest.TestCase):
     def test_nghi_json_parser_rejects_missing_cases(self):
         with self.assertRaisesRegex(ValueError, "cases"):
             audit.validate_nghi_payload({"metadata": {}})
+
+    def test_nghi_json_parser_requires_scalar_ids_that_match_onnx_tensor(self):
+        cases = []
+        for sentence in audit.TEST_SENTENCES:
+            cases.append(
+                {
+                    "original": sentence,
+                    "processed_text": sentence.lower(),
+                    "chunks": [
+                        {
+                            "text": sentence.lower(),
+                            "phoneme_string": "foo.",
+                            "phoneme_ids": [[1], [0], [10], [0], [2]],
+                        }
+                    ],
+                }
+            )
+        with self.assertRaisesRegex(ValueError, "scalar integer"):
+            audit.validate_nghi_payload({"metadata": {}, "cases": cases})
 
 
 if __name__ == "__main__":
