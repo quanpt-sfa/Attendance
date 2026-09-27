@@ -17,6 +17,21 @@ function parseArgs(argv) {
   return args;
 }
 
+function toOnnxScalarIds(rawIds) {
+  return rawIds.map((value) => {
+    // NGHI's phonemesToIds pushes idMap entries such as [10]. Immediately before
+    // ONNX it executes BigInt(id), so [10] is coerced to 10n. Reproduce that exact
+    // coercion here and report the scalar tensor sequence, not nested config arrays.
+    try {
+      return Number(BigInt(value));
+    } catch (error) {
+      throw new Error(`Cannot coerce NGHI phoneme id ${JSON.stringify(value)} to ONNX int64`, {
+        cause: error,
+      });
+    }
+  });
+}
+
 const args = parseArgs(process.argv.slice(2));
 const nghiRoot = path.resolve(args['nghi-root'] || '');
 const voiceConfigPath = path.resolve(args['voice-config'] || '');
@@ -82,7 +97,8 @@ for (const original of request.sentences) {
 
   for (const text of chunks) {
     const phonemeGroups = await tts.textToPhonemes(text);
-    const phonemeIds = await tts.phonemesToIds(phonemeGroups);
+    const rawPhonemeIds = await tts.phonemesToIds(phonemeGroups);
+    const phonemeIds = toOnnxScalarIds(rawPhonemeIds);
     auditedChunks.push({
       text,
       phoneme_groups: phonemeGroups.map((group) => group.join('')),
