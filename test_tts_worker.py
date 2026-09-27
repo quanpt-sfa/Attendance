@@ -109,11 +109,75 @@ class PiperSynthesizerTests(unittest.TestCase):
             self.assertFalse(output.exists())
 
 
+class NativePiperSynthesizerTests(unittest.TestCase):
+    def test_native_process_uses_utf8_json_input_and_reuses_loaded_model(self):
+        calls = {"starts": 0, "writes": []}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "student.wav"
+
+            class FakeStdin:
+                def write(self, value):
+                    calls["writes"].append(value)
+                    return len(value)
+
+                def flush(self):
+                    calls["flushed"] = True
+
+            class FakeStdout:
+                def readline(self):
+                    output.write_bytes(b"RIFF\x00\x00\x00\x00WAVEdata")
+                    return str(output) + "\n"
+
+            class FakeProcess:
+                def __init__(self):
+                    self.stdin = FakeStdin()
+                    self.stdout = FakeStdout()
+
+                def poll(self):
+                    return None
+
+                def terminate(self):
+                    pass
+
+                def wait(self, timeout=None):
+                    return 0
+
+            def process_factory(command, **kwargs):
+                calls["starts"] += 1
+                calls["command"] = command
+                calls["kwargs"] = kwargs
+                return FakeProcess()
+
+            synthesizer = tts_worker.NativePiperSynthesizer(
+                Path("piper.exe"),
+                Path("voice.onnx"),
+                Path("voice.onnx.json"),
+                process_factory=process_factory,
+            )
+            synthesizer("HUỲNH QUỐC PHƯỚC", output)
+            synthesizer("Nguyễn Thị THU", output)
+
+            self.assertEqual(calls["starts"], 1)
+            self.assertIn("--json-input", calls["command"])
+            self.assertIn("--quiet", calls["command"])
+            first = json.loads(calls["writes"][0])
+            second = json.loads(calls["writes"][1])
+            self.assertEqual(first["text"], "huỳnh quốc phước")
+            self.assertEqual(second["text"], "nguyễn thị thu")
+            self.assertEqual(first["output_file"], str(output))
+            self.assertTrue(calls.get("flushed"))
+
+
 class TTSWindowsScriptContractTests(unittest.TestCase):
-    def test_setup_script_pins_runtime_voice_revision_hashes_and_smoke_test(self):
+    def test_setup_script_pins_native_windows_runtime_voice_and_smoke_test(self):
         text = (ROOT / "Setup-TTS.bat").read_text(encoding="utf-8").lower()
-        self.assertIn("piper-tts==1.8.0", text)
         self.assertIn(".venv-tts\\scripts\\python.exe", text)
+        self.assertIn("piper_windows_amd64.zip", text)
+        self.assertIn("2023.11.14-2", text)
+        self.assertIn("expand-archive", text)
+        self.assertIn("tts\\runtime\\piper\\piper.exe", text)
+        self.assertNotIn('pip install "piper-tts==1.8.0"', text)
         self.assertIn('set "voice_id=calmwoman3688"', text)
         self.assertIn('set "model_path=%voice_dir%\\%voice_id%.onnx"', text)
         self.assertIn('set "config_path=%voice_dir%\\%voice_id%.onnx.json"', text)
@@ -129,6 +193,7 @@ class TTSWindowsScriptContractTests(unittest.TestCase):
         )
         self.assertGreaterEqual(text.count("get-filehash -algorithm sha256"), 2)
         self.assertIn("--smoke-test", text)
+        self.assertIn("--native-piper", text)
         self.assertNotIn("vi_vn-vais1000-medium", text)
 
     def test_check_script_is_read_only(self):
