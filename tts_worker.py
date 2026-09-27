@@ -13,7 +13,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 import unicodedata
 import wave
 from pathlib import Path
@@ -36,58 +35,6 @@ def prepare_spoken_name(text: str) -> str:
     normalized = unicodedata.normalize("NFC", str(text or ""))
     normalized = re.sub(r"\s+", " ", normalized).strip()
     return normalized.lower()
-
-
-def split_spoken_sentences(text: str) -> list[str]:
-    """Split normalized speech text at sentence-ending punctuation."""
-    value = str(text or "").strip()
-    if not value:
-        return []
-    return [part.strip() for part in re.split(r"(?<=[.!?])\s+", value) if part.strip()]
-
-
-def merge_wav_segments(
-    segments: list[Path],
-    output: Path,
-    silence_seconds: float = DEFAULT_SENTENCE_SILENCE_SECONDS,
-) -> None:
-    """Join PCM WAV segments with deterministic physical silence between them."""
-    if not segments:
-        raise ValueError("No WAV segments to merge")
-
-    params = None
-    audio_chunks = []
-    for segment in segments:
-        with wave.open(str(segment), "rb") as wav_file:
-            current = (
-                wav_file.getnchannels(),
-                wav_file.getsampwidth(),
-                wav_file.getframerate(),
-                wav_file.getcomptype(),
-                wav_file.getcompname(),
-            )
-            if params is None:
-                params = current
-            elif current != params:
-                raise RuntimeError("Piper produced WAV segments with incompatible formats")
-            audio_chunks.append(wav_file.readframes(wav_file.getnframes()))
-
-    channels, sample_width, frame_rate, compression_type, compression_name = params
-    pause_frames = max(0, round(frame_rate * float(silence_seconds)))
-    silence_sample = b"\x80" if sample_width == 1 else b"\x00" * sample_width
-    silence = silence_sample * channels * pause_frames
-
-    output = Path(output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with wave.open(str(output), "wb") as wav_file:
-        wav_file.setnchannels(channels)
-        wav_file.setsampwidth(sample_width)
-        wav_file.setframerate(frame_rate)
-        wav_file.setcomptype(compression_type, compression_name)
-        for index, chunk in enumerate(audio_chunks):
-            if index:
-                wav_file.writeframes(silence)
-            wav_file.writeframes(chunk)
 
 
 def handle_request(request: dict, synthesize: Callable[[str, Path], None]) -> dict:
@@ -271,7 +218,13 @@ class NativePiperSynthesizer:
             except (AttributeError, OSError):
                 pass
 
-    def _synthesize_one(self, spoken_text: str, output: Path) -> None:
+    def __call__(self, text: str, output: Path) -> None:
+        output = Path(output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        spoken_text = prepare_spoken_name(text)
+        if not spoken_text:
+            raise ValueError("Synthesis text is empty after normalization")
+
         process = self._start_process()
         if process.stdin is None or process.stdout is None:
             raise RuntimeError("Native Piper process has no active protocol pipes")
@@ -302,26 +255,6 @@ class NativePiperSynthesizer:
             )
         if not output.is_file():
             raise RuntimeError("Native Piper acknowledged output but WAV file is missing")
-
-    def __call__(self, text: str, output: Path) -> None:
-        output = Path(output)
-        output.parent.mkdir(parents=True, exist_ok=True)
-        spoken_text = prepare_spoken_name(text)
-        if not spoken_text:
-            raise ValueError("Synthesis text is empty after normalization")
-
-        sentences = split_spoken_sentences(spoken_text)
-        if len(sentences) <= 1:
-            self._synthesize_one(spoken_text, output)
-            return
-
-        with tempfile.TemporaryDirectory(prefix="tts-sentences-", dir=str(output.parent)) as tmp:
-            segment_paths = []
-            for index, sentence in enumerate(sentences):
-                segment_path = Path(tmp) / f"{index:03d}.wav"
-                self._synthesize_one(sentence, segment_path)
-                segment_paths.append(segment_path)
-            merge_wav_segments(segment_paths, output, DEFAULT_SENTENCE_SILENCE_SECONDS)
 
 
 def _build_parser() -> argparse.ArgumentParser:
