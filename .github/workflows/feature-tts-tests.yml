@@ -28,6 +28,26 @@ jobs:
           python -m unittest test_db_schema test_startup -v
           python -m unittest test_tts_service test_tts_worker test_server_tts test_tts_integration -v
           python -m unittest test_tts_audit -v
+      - name: Real Piper 1.8 Vietnamese sentence segmentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check "piper-tts==1.8.0"
+          python - <<'PY'
+          import importlib.metadata
+          from piper.phonemize_espeak import ESPEAK_DATA_DIR, EspeakPhonemizer
+
+          assert importlib.metadata.version("piper-tts") == "1.8.0"
+          phonemizer = EspeakPhonemizer(ESPEAK_DATA_DIR)
+          sentences = phonemizer.phonemize(
+              "vi",
+              "huỳnh quốc phước đã điểm danh thành công. mời sinh viên tiếp theo.",
+          )
+          assert len(sentences) == 2, sentences
+          assert "." in sentences[0], sentences[0]
+          assert "." in sentences[1], sentences[1]
+          print("Piper 1.8 Vietnamese sentence groups:", len(sentences))
+          PY
       - name: JavaScript syntax and regression tests
         shell: bash
         run: |
