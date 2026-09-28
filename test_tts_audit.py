@@ -1,6 +1,10 @@
 import unittest
+from pathlib import Path
 
 from tools import tts_phoneme_audit as audit
+
+
+ROOT = Path(__file__).resolve().parent
 
 
 class TTSAuditContractTests(unittest.TestCase):
@@ -100,6 +104,12 @@ class TTSAuditContractTests(unittest.TestCase):
             )
         with self.assertRaisesRegex(ValueError, "scalar integer"):
             audit.validate_nghi_payload({"metadata": {}, "cases": cases})
+
+    def test_powershell_audit_uses_same_venv_as_production_and_no_legacy_exe(self):
+        text = (ROOT / "tools" / "tts_phoneme_audit.ps1").read_text(encoding="utf-8").lower()
+        self.assertIn(".venv-tts\\scripts\\python.exe", text)
+        self.assertNotIn("tts\\runtime\\piper\\piper.exe", text)
+        self.assertNotIn("--piper-exe", text)
 
 
 if __name__ == "__main__":
