@@ -7,6 +7,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 $AuditRoot = Join-Path $Root ".tts-audit"
 $NghiRoot = Join-Path $AuditRoot "nghitts"
 $NghiCommit = "46d160da32041f7e176607203b958069265df7da"
+$TtsPython = Join-Path $Root ".venv-tts\Scripts\python.exe"
 
 if (-not $OutputDir) {
     $OutputDir = Join-Path $Root "tts_audit_output"
@@ -21,7 +22,10 @@ function Require-Command([string]$Name) {
 Require-Command "git"
 Require-Command "node"
 Require-Command "npm"
-Require-Command "python"
+
+if (-not (Test-Path $TtsPython)) {
+    throw "Missing TTS virtualenv Python: $TtsPython. Run Setup-TTS.bat first."
+}
 
 $nodeMajor = [int]((& node -p "process.versions.node.split('.')[0]").Trim())
 if ($nodeMajor -lt 18) {
@@ -60,20 +64,18 @@ if (-not (Test-Path $phonemizerPackage)) {
     }
 }
 
-$piperExe = Join-Path $Root "tts\runtime\piper\piper.exe"
 $modelPath = Join-Path $Root "tts\voices\calmwoman3688.onnx"
 $configPath = Join-Path $Root "tts\voices\calmwoman3688.onnx.json"
-foreach ($required in @($piperExe, $modelPath, $configPath)) {
+foreach ($required in @($modelPath, $configPath)) {
     if (-not (Test-Path $required)) {
         throw "Missing TTS prerequisite: $required. Run Setup-TTS.bat first."
     }
 }
 
-Write-Host "[audit] Comparing NGHI-TTS and Attendance/Piper phoneme inputs..."
-& python (Join-Path $PSScriptRoot "tts_phoneme_audit.py") `
+Write-Host "[audit] Comparing NGHI-TTS and production Piper 1.8 phoneme inputs..."
+& $TtsPython (Join-Path $PSScriptRoot "tts_phoneme_audit.py") `
     --nghi-root $NghiRoot `
     --output-dir $OutputDir `
-    --piper-exe $piperExe `
     --model $modelPath `
     --config $configPath
 if ($LASTEXITCODE -ne 0) {
