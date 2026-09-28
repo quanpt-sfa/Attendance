@@ -113,15 +113,17 @@ precache_students(students: list[dict]) -> dict
 shutdown_worker() -> None
 ```
 
+`normalize_text()` continues to perform NFC normalization and whitespace collapse for deterministic cache identity. It preserves source case and Vietnamese diacritics.
+
 ### 4.2 `tts_worker.py`
 
 The Python worker becomes an inference/orchestration worker rather than a text phonemizer.
 
 It must:
 
-1. normalize synthesis-only casing/whitespace as currently required for Vietnamese student names;
+1. preserve source case and punctuation, applying only NFC normalization and whitespace collapse before handing text to NGHI;
 2. keep one NGHI frontend sidecar alive;
-3. send the complete text to the sidecar;
+3. send the complete normalized text to the sidecar;
 4. receive ordered NGHI chunks and scalar phoneme-ID arrays;
 5. lazily load the pinned ONNX voice once;
 6. call `PiperVoice.phoneme_ids_to_audio()` for each NGHI chunk;
@@ -129,6 +131,8 @@ It must:
 8. add no silence between chunks;
 9. delete partial output if any frontend or inference step fails;
 10. restart a failed frontend sidecar at most once for the current request.
+
+The old `prepare_spoken_name(...).lower()` workaround is not part of the new production path. Case/acronym interpretation belongs to the exact NGHI frontend. Database and display text remain untouched.
 
 The worker must not call:
 
@@ -172,7 +176,7 @@ A request from Python to Node is:
 {
   "id": "request-id",
   "action": "frontend",
-  "text": "huỳnh quốc phước đã điểm danh thành công. mời sinh viên tiếp theo."
+  "text": "Huỳnh Quốc Phước đã điểm danh thành công. Mời sinh viên tiếp theo."
 }
 ```
 
@@ -413,7 +417,7 @@ Implementation is TDD-first.
 Tests must prove:
 
 1. NDJSON request IDs are preserved;
-2. complete text is sent to NGHI without an Attendance sentence splitter;
+2. complete source-case text is sent to NGHI without an Attendance sentence splitter or lowercasing step;
 3. Case 2 returns two NGHI chunks;
 4. commas remain inside a chunk rather than becoming sentence boundaries;
 5. `!` and `?` produce expected NGHI chunk boundaries;
@@ -433,6 +437,8 @@ chunk text
 phoneme_ids, element by element
 ```
 
+The parity input is the same NFC/whitespace-normalized source-case text in both production and audit paths.
+
 Case 2 is a hard gate: production must return exactly two NGHI chunks before synthesis can be considered correct.
 
 ### 13.3 Python worker tests
@@ -446,7 +452,7 @@ Tests must prove:
 5. WAV format is valid and uses the model sample rate;
 6. partial files are removed after frontend or inference failure;
 7. sidecar restart is bounded to one retry;
-8. uppercase Vietnamese student names still use the synthesis-only normalization policy without mutating database/display text.
+8. uppercase Vietnamese input reaches NGHI with case preserved, while database/display text remains untouched.
 
 ### 13.4 Service/integration tests
 
@@ -490,6 +496,7 @@ The migration is complete only when all are true:
 - `main` no longer uses native Piper 2023 for production Vietnamese synthesis;
 - production never uses stock Piper phonemization for `calmwoman3688`;
 - production frontend chunk text and phoneme IDs equal pinned NGHI output;
+- source case is preserved until NGHI applies its own text rules;
 - Case 2 produces exactly two NGHI chunks;
 - Python performs model inference from those IDs only;
 - no synthetic inter-sentence silence is added;
