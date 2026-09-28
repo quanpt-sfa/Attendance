@@ -146,7 +146,7 @@ Nếu scanner của bạn dùng **Web Serial** hoặc **WebUSB**, bạn cần co
 
 ## Offline Vietnamese TTS cho Random Picker
 
-Phiên bản server Python hiện tại có thể đọc tên sinh viên bằng Piper chạy hoàn toàn local. Trên Windows, Attendance dùng **Piper native** thay vì Python `piper-tts/espeakbridge`; cách này tránh lỗi Unicode surrogate khi phonemize tên tiếng Việt. Random Picker ưu tiên WAV đã cache; nếu TTS local chưa sẵn sàng hoặc phát audio lỗi, hệ thống tự quay về giọng `speechSynthesis` của trình duyệt.
+Phiên bản server Python hiện tại có thể đọc tên sinh viên bằng Piper chạy hoàn toàn local. Attendance dùng **`piper-tts==1.8.0` trong `.venv-tts` riêng**. Text đầy đủ được chuyển nguyên vẹn cho frontend của Piper; Piper tự phonemize và tách sentence trước ONNX inference. Attendance không tự chèn khoảng lặng vào WAV và không tự chia câu bằng regex. Random Picker ưu tiên WAV đã cache; nếu TTS local chưa sẵn sàng hoặc phát audio lỗi, hệ thống tự quay về giọng `speechSynthesis` của trình duyệt.
 
 ### Cài TTS một lần
 
@@ -156,7 +156,7 @@ Cần Internet cho đúng bước này. Trong thư mục Attendance trên Window
 .\Setup-TTS.bat
 ```
 
-Script tạo `.venv-tts` riêng cho worker, tải Piper native Windows `2023.11.14-2`, tải voice tiếng Việt NGHI-TTS `calmwoman3688`, kiểm tra SHA-256 của model và config, rồi chạy smoke test bằng nhiều tên Việt có dấu. Python `piper-tts` không còn được dùng để phonemize trên Windows.
+Script tạo `.venv-tts` riêng cho worker, pin `piper-tts==1.8.0`, tải voice tiếng Việt NGHI-TTS `calmwoman3688`, kiểm tra SHA-256 của model và config, rồi chạy smoke test bằng nhiều tên Việt có dấu. Runtime cũ `piper.exe` 2023 không còn nằm trong production path.
 
 Voice được pin vào một revision cố định của bộ model `sannht/vi_voice` để tránh việc model thay đổi âm thầm. Config của `calmwoman3688` dùng eSpeak voice `vi` và sample rate 22050 Hz.
 
@@ -171,13 +171,13 @@ Trạng thái sẵn sàng trên Windows có dạng:
 ```text
 Piper: READY
 Voice: calmwoman3688
-Backend: native-piper
+Backend: piper-tts-1.8.0
 Runtime: OK
 Model: OK
 Cache: 42 WAV file(s)
 ```
 
-Nếu máy đã cài TTS bằng phiên bản cũ, hãy `git pull` rồi chạy lại `Setup-TTS.bat`. Script chỉ tải Piper native nếu runtime chưa có; model/config đã đúng sẽ được tái sử dụng. Cache format được version hóa nên WAV tạo bởi backend cũ tự động không được tái sử dụng.
+Nếu máy đã cài TTS bằng phiên bản cũ, hãy `git pull` rồi chạy lại `Setup-TTS.bat`. Script tái sử dụng model/config đã đúng và cài hoặc nâng đúng runtime `piper-tts==1.8.0` trong `.venv-tts`. Cache format được version hóa nên WAV tạo bởi frontend/runtime cũ tự động không được tái sử dụng.
 
 ### Chạy Attendance
 
