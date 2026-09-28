@@ -173,7 +173,8 @@ class TTSWindowsScriptContractTests(unittest.TestCase):
     def test_setup_script_pins_piper_1_8_python_runtime_voice_and_smoke_test(self):
         text = (ROOT / "Setup-TTS.bat").read_text(encoding="utf-8").lower()
         self.assertIn(".venv-tts\\scripts\\python.exe", text)
-        self.assertIn('piper-tts==1.8.0', text)
+        self.assertIn('set "piper_version=1.8.0"', text)
+        self.assertIn('piper-tts==%piper_version%', text)
         self.assertIn('pip install', text)
         self.assertNotIn("piper_windows_amd64.zip", text)
         self.assertNotIn("2023.11.14-2", text)
