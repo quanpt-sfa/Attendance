@@ -1,4 +1,4 @@
-"""Compare NGHI-TTS and Attendance/Piper text-to-phoneme inputs.
+"""Compare NGHI-TTS and Attendance/Piper 1.8 text-to-phoneme inputs.
 
 This is a development-only diagnostic. It does not participate in production
 synthesis and deliberately does not add or alter audio pauses.
@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import importlib.metadata
 import json
-import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +22,7 @@ if str(ROOT) not in sys.path:
 from tts_worker import prepare_spoken_name  # noqa: E402
 
 NGHI_COMMIT = "46d160da32041f7e176607203b958069265df7da"
+PIPER_VERSION = "1.8.0"
 TEST_SENTENCES = [
     "Huỳnh Quốc Phước đã điểm danh thành công.",
     "Huỳnh Quốc Phước đã điểm danh thành công. Mời sinh viên tiếp theo.",
@@ -31,12 +31,6 @@ TEST_SENTENCES = [
     "Bạn đã điểm danh thành công?",
 ]
 PUNCTUATION = (".", ",", "!", "?", ":", ";")
-ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-PHONEME_RE = re.compile(r"Phonemes for sentence:\s*(.*)$", re.IGNORECASE)
-IDS_RE = re.compile(
-    r"Converted\s+\d+\s+phoneme\(s\)\s+to\s+\d+\s+phoneme id\(s\):\s*(.*)$",
-    re.IGNORECASE,
-)
 
 
 def _first_id(config: dict[str, Any], symbol: str) -> int | None:
@@ -44,41 +38,10 @@ def _first_id(config: dict[str, Any], symbol: str) -> int | None:
     return int(values[0]) if values else None
 
 
-def parse_piper_debug(stderr: str) -> list[dict[str, Any]]:
-    """Parse legacy native Piper --debug phoneme/ID diagnostics.
-
-    The pinned Windows runtime logs one ``Phonemes for sentence`` line followed
-    by ``Converted ... phoneme id(s)`` before each ONNX inference call.
-    """
-    clean = ANSI_RE.sub("", stderr or "")
-    records: list[dict[str, Any]] = []
-    current: dict[str, Any] | None = None
-
-    for raw_line in clean.splitlines():
-        line = raw_line.strip()
-        match = PHONEME_RE.search(line)
-        if match:
-            current = {"phoneme_string": match.group(1).strip(), "phoneme_ids": []}
-            records.append(current)
-            continue
-
-        match = IDS_RE.search(line)
-        if not match:
-            continue
-        ids = [int(value) for value in re.findall(r"-?\d+", match.group(1))]
-        if current is None or current.get("phoneme_ids"):
-            current = {"phoneme_string": "", "phoneme_ids": ids}
-            records.append(current)
-        else:
-            current["phoneme_ids"] = ids
-
-    return records
-
-
 def analyze_punctuation(
     phoneme_string: str, phoneme_ids: list[int], voice_config: dict[str, Any]
 ) -> dict[str, Any]:
-    """Locate punctuation characters and their configured IDs in one inference input."""
+    """Locate punctuation characters and configured IDs in one inference input."""
     result: dict[str, Any] = {}
     for symbol in PUNCTUATION:
         phoneme_id = _first_id(voice_config, symbol)
@@ -101,6 +64,33 @@ def analyze_punctuation(
         "EOS": list(id_map.get("$", [])),
     }
     return result
+
+
+def audit_piper_voice(
+    voice: Any, original_text: str, voice_config: dict[str, Any]
+) -> dict[str, Any]:
+    """Capture Piper 1.8 sentence groups and exact phoneme IDs before ONNX."""
+    spoken_text = prepare_spoken_name(original_text)
+    sentence_groups = voice.phonemize(spoken_text)
+    sentences: list[dict[str, Any]] = []
+
+    for phonemes in sentence_groups:
+        if not phonemes:
+            continue
+        ids = [int(value) for value in voice.phonemes_to_ids(phonemes)]
+        phoneme_string = "".join(str(value) for value in phonemes)
+        sentences.append(
+            {
+                "phoneme_string": phoneme_string,
+                "phoneme_ids": ids,
+                "punctuation": analyze_punctuation(phoneme_string, ids, voice_config),
+            }
+        )
+
+    if not sentences:
+        raise RuntimeError(f"Piper 1.8 produced no phoneme sentence for {original_text!r}")
+
+    return {"input_text": spoken_text, "sentences": sentences}
 
 
 def validate_nghi_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -143,56 +133,6 @@ def _run_command(command: list[str], **kwargs) -> subprocess.CompletedProcess[st
         check=False,
         **kwargs,
     )
-
-
-def run_piper_case(
-    piper_exe: Path,
-    model_path: Path,
-    config_path: Path,
-    original_text: str,
-    voice_config: dict[str, Any],
-) -> dict[str, Any]:
-    spoken_text = prepare_spoken_name(original_text)
-    with tempfile.TemporaryDirectory(prefix="attendance-piper-audit-") as temp_dir:
-        output_path = Path(temp_dir) / "audit.wav"
-        command = [
-            str(piper_exe),
-            "--model",
-            str(model_path),
-            "--config",
-            str(config_path),
-            "--output_file",
-            str(output_path),
-            "--debug",
-        ]
-        completed = _run_command(
-            command,
-            input=spoken_text + "\n",
-            cwd=str(piper_exe.parent),
-        )
-
-    if completed.returncode != 0:
-        raise RuntimeError(
-            "Native Piper audit failed for "
-            f"{original_text!r} (exit={completed.returncode}):\n{completed.stderr}"
-        )
-
-    sentences = parse_piper_debug(completed.stderr)
-    if not sentences or any(not item.get("phoneme_ids") for item in sentences):
-        raise RuntimeError(
-            "Could not parse phoneme string/IDs from native Piper --debug output. "
-            "Raw stderr follows:\n" + completed.stderr
-        )
-
-    for sentence in sentences:
-        sentence["punctuation"] = analyze_punctuation(
-            sentence.get("phoneme_string", ""), sentence.get("phoneme_ids", []), voice_config
-        )
-
-    return {
-        "input_text": spoken_text,
-        "sentences": sentences,
-    }
 
 
 def run_nghi_audit(
@@ -310,9 +250,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
 
 def build_audit(
     nghi_payload: dict[str, Any],
-    piper_exe: Path,
+    piper_voice: Any,
     model_path: Path,
-    config_path: Path,
     voice_config: dict[str, Any],
 ) -> dict[str, Any]:
     cases = []
@@ -328,9 +267,7 @@ def build_audit(
                 chunk.get("phoneme_string", ""), chunk.get("phoneme_ids", []), voice_config
             )
 
-        piper_case = run_piper_case(
-            piper_exe, model_path, config_path, original, voice_config
-        )
+        piper_case = audit_piper_voice(piper_voice, original, voice_config)
         cases.append(
             {
                 "original": original,
@@ -343,7 +280,8 @@ def build_audit(
     return {
         "metadata": {
             "nghi_commit": NGHI_COMMIT,
-            "piper_runtime": str(piper_exe),
+            "piper_runtime": f"piper-tts {PIPER_VERSION}",
+            "piper_model": str(model_path),
             "voice": voice_config.get("dataset") or voice_config.get("name") or "calmwoman3688",
             "voice_revision": "sannht/vi_voice@62e57b18157ed213b3863a7a8a35b14d3404554b",
             "generated_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -366,9 +304,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=ROOT / "tts_audit_output")
     parser.add_argument("--node", default="node")
     parser.add_argument(
-        "--piper-exe", type=Path, default=ROOT / "tts" / "runtime" / "piper" / "piper.exe"
-    )
-    parser.add_argument(
         "--model", type=Path, default=ROOT / "tts" / "voices" / "calmwoman3688.onnx"
     )
     parser.add_argument(
@@ -380,20 +315,24 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     harness_path = ROOT / "tools" / "nghi_phoneme_audit.mjs"
-    required = [args.piper_exe, args.model, args.config, harness_path]
+    required = [args.model, args.config, harness_path]
     missing = [str(path) for path in required if not path.is_file()]
     if missing:
         raise SystemExit("Missing audit prerequisite(s):\n- " + "\n- ".join(missing))
 
+    installed_version = importlib.metadata.version("piper-tts")
+    if installed_version != PIPER_VERSION:
+        raise SystemExit(
+            f"Audit requires piper-tts=={PIPER_VERSION}; found {installed_version}. "
+            "Run Setup-TTS.bat first."
+        )
+
+    from piper import PiperVoice
+
     voice_config = _load_voice_config(args.config)
+    piper_voice = PiperVoice.load(str(args.model), config_path=str(args.config))
     nghi_payload = run_nghi_audit(args.node, harness_path, args.nghi_root, args.config)
-    payload = build_audit(
-        nghi_payload,
-        args.piper_exe,
-        args.model,
-        args.config,
-        voice_config,
-    )
+    payload = build_audit(nghi_payload, piper_voice, args.model, voice_config)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     json_path = args.output_dir / "tts_phoneme_audit.json"
