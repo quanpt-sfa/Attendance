@@ -16,19 +16,31 @@ class TTSAuditContractTests(unittest.TestCase):
             ],
         )
 
-    def test_parse_piper_debug_collects_sentence_phonemes_and_ids(self):
-        stderr = """
-[2026-09-27 15:00:00.000] [piper] [debug] Phonemes for sentence: hwiɲ kwok fɯək.
-[2026-09-27 15:00:00.001] [piper] [debug] Converted 15 phoneme(s) to 33 phoneme id(s): 1, 0, 20, 0, 37, 0, 10, 0, 2,
-[2026-09-27 15:00:00.002] [piper] [debug] Phonemes for sentence: mɤj ʂiɲ vjen.
-[2026-09-27 15:00:00.003] [piper] [debug] Converted 12 phoneme(s) to 27 phoneme id(s): 1, 0, 26, 0, 10, 0, 2,
-"""
-        parsed = audit.parse_piper_debug(stderr)
-        self.assertEqual(len(parsed), 2)
-        self.assertEqual(parsed[0]["phoneme_string"], "hwiɲ kwok fɯək.")
-        self.assertEqual(parsed[0]["phoneme_ids"], [1, 0, 20, 0, 37, 0, 10, 0, 2])
-        self.assertEqual(parsed[1]["phoneme_string"], "mɤj ʂiɲ vjen.")
-        self.assertIn(10, parsed[1]["phoneme_ids"])
+    def test_audit_piper_voice_collects_each_sentence_chunk_and_onnx_ids(self):
+        class FakeVoice:
+            def phonemize(self, text):
+                self.text = text
+                return [list("abc."), list("def?")]
+
+            def phonemes_to_ids(self, phonemes):
+                terminal = phonemes[-1]
+                terminal_id = {".": 10, "?": 13}[terminal]
+                return [1, 0, terminal_id, 0, 2]
+
+        config = {
+            "phoneme_id_map": {
+                "^": [1], "_": [0], "$": [2],
+                ".": [10], ",": [8], "!": [4], "?": [13], ":": [11], ";": [12],
+            }
+        }
+        voice = FakeVoice()
+        result = audit.audit_piper_voice(voice, "Hai câu.", config)
+
+        self.assertEqual(voice.text, "hai câu.")
+        self.assertEqual(len(result["sentences"]), 2)
+        self.assertEqual(result["sentences"][0]["phoneme_string"], "abc.")
+        self.assertEqual(result["sentences"][0]["phoneme_ids"], [1, 0, 10, 0, 2])
+        self.assertEqual(result["sentences"][1]["phoneme_ids"], [1, 0, 13, 0, 2])
 
     def test_analyze_punctuation_reports_character_and_id_positions(self):
         config = {
@@ -46,7 +58,10 @@ class TTSAuditContractTests(unittest.TestCase):
 
     def test_markdown_report_contains_both_pipeline_sections(self):
         payload = {
-            "metadata": {"nghi_commit": audit.NGHI_COMMIT},
+            "metadata": {
+                "nghi_commit": audit.NGHI_COMMIT,
+                "piper_runtime": "piper-tts 1.8.0",
+            },
             "cases": [
                 {
                     "original": audit.TEST_SENTENCES[0],
@@ -59,6 +74,7 @@ class TTSAuditContractTests(unittest.TestCase):
         report = audit.render_markdown(payload)
         self.assertIn("NGHI-TTS", report)
         self.assertIn("Attendance / Piper", report)
+        self.assertIn("piper-tts 1.8.0", report)
         self.assertIn("46d160da32041f7e176607203b958069265df7da", report)
         self.assertIn("Huỳnh Quốc Phước", report)
 
