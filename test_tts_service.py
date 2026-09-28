@@ -44,8 +44,11 @@ class TTSServicePureTests(unittest.TestCase):
             "sannht-vi_voice-62e57b18157ed213b3863a7a8a35b14d3404554b",
         )
 
-    def test_cache_format_is_bumped_after_sentence_pause_change(self):
-        self.assertEqual(tts_service.CACHE_FORMAT_VERSION, 5)
+    def test_cache_format_is_bumped_for_piper_1_8_frontend(self):
+        self.assertEqual(tts_service.CACHE_FORMAT_VERSION, 6)
+
+    def test_backend_identifies_piper_1_8(self):
+        self.assertEqual(tts_service.PIPER_RUNTIME_VERSION, "1.8.0")
 
 
 class TTSServiceCacheTests(unittest.TestCase):
@@ -177,14 +180,30 @@ class TTSServiceStatusTests(unittest.TestCase):
         self.assertFalse(status["runtime_present"])
         self.assertFalse(status["model_present"])
         self.assertEqual(status["voice"], "calmwoman3688")
+        self.assertEqual(status["backend"], "piper-tts-1.8.0")
         self.assertEqual(status["cache_files"], 0)
+
+    def test_runtime_requires_only_isolated_python_not_native_piper_exe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runtime = root / "python.exe"
+            runtime.write_bytes(b"")
+            with (
+                mock.patch.object(tts_service, "_worker_python", return_value=runtime),
+                mock.patch.object(tts_service, "_voice_model", return_value=root / "missing.onnx"),
+                mock.patch.object(tts_service, "_voice_config", return_value=root / "missing.json"),
+            ):
+                runtime_present, model_present = tts_service._runtime_state()
+
+        self.assertTrue(runtime_present)
+        self.assertFalse(model_present)
 
 
 class TTSWorkerLaunchTests(unittest.TestCase):
     def tearDown(self):
         tts_service.shutdown_worker()
 
-    def test_worker_process_forces_utf8_standard_streams(self):
+    def test_worker_process_forces_utf8_standard_streams_and_uses_python_piper(self):
         class FakeProcess:
             stdin = None
             stdout = []
@@ -205,7 +224,10 @@ class TTSWorkerLaunchTests(unittest.TestCase):
             tts_service._start_worker_locked()
 
         env = popen.call_args.kwargs["env"]
+        command = popen.call_args.args[0]
         self.assertEqual(env["PYTHONIOENCODING"], "utf-8:strict")
+        self.assertNotIn("--native-piper", command)
+        self.assertNotIn("piper.exe", " ".join(command).lower())
 
 
 if __name__ == "__main__":
