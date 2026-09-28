@@ -1,9 +1,8 @@
 """Offline Vietnamese TTS cache/service boundary for Attendance.
 
 The main Attendance process never imports Piper. Synthesis is delegated to
-``tts_worker.py`` running under the isolated ``.venv-tts`` interpreter. On
-Windows, that worker uses the bundled native Piper executable so Vietnamese
-phonemization does not depend on Python ``espeakbridge``.
+``tts_worker.py`` running under the isolated ``.venv-tts`` interpreter with
+pinned ``piper-tts==1.8.0``.
 """
 
 from __future__ import annotations
@@ -23,14 +22,13 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parent
 TTS_VENV = PROJECT_DIR / ".venv-tts"
 VOICE_DIR = PROJECT_DIR / "tts" / "voices"
-TTS_RUNTIME_DIR = PROJECT_DIR / "tts" / "runtime"
-NATIVE_PIPER = TTS_RUNTIME_DIR / "piper" / "piper.exe"
 CACHE_DIR = PROJECT_DIR / "tts_cache"
 WORKER_SCRIPT = PROJECT_DIR / "tts_worker.py"
 
 VOICE_ID = "calmwoman3688"
 VOICE_REVISION = "sannht-vi_voice-62e57b18157ed213b3863a7a8a35b14d3404554b"
-CACHE_FORMAT_VERSION = 5
+PIPER_RUNTIME_VERSION = "1.8.0"
+CACHE_FORMAT_VERSION = 6
 WORKER_TIMEOUT_SECONDS = 20.0
 
 VOICE_MODEL_NAME = f"{VOICE_ID}.onnx"
@@ -107,9 +105,9 @@ def get_cached_audio(text: str) -> Path | None:
 
 
 def _runtime_state() -> tuple[bool, bool]:
+    # Setup-TTS.bat owns the isolated environment and pins piper-tts==1.8.0.
+    # Production no longer depends on a separate native piper.exe runtime.
     runtime_present = _worker_python().is_file()
-    if os.name == "nt":
-        runtime_present = runtime_present and NATIVE_PIPER.is_file()
     model_present = _voice_model().is_file() and _voice_config().is_file()
     return runtime_present, model_present
 
@@ -124,7 +122,7 @@ def get_status() -> dict:
         "available": bool(runtime_present and model_present and WORKER_SCRIPT.is_file()),
         "voice": VOICE_ID,
         "voice_revision": VOICE_REVISION,
-        "backend": "native-piper" if os.name == "nt" else "python-piper",
+        "backend": f"piper-tts-{PIPER_RUNTIME_VERSION}",
         "runtime_present": runtime_present,
         "model_present": model_present,
         "cache_files": cache_files,
@@ -190,8 +188,6 @@ def _start_worker_locked():
         "--config",
         str(_voice_config()),
     ]
-    if os.name == "nt":
-        command.extend(["--native-piper", str(NATIVE_PIPER)])
 
     worker_env = os.environ.copy()
     worker_env["PYTHONIOENCODING"] = "utf-8:strict"
