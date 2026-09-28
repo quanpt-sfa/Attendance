@@ -115,12 +115,18 @@ class PiperSynthesizerTests(unittest.TestCase):
                 return object()
 
         fake_module = types.SimpleNamespace(PiperVoice=FakePiperVoice)
-        synth = tts_worker.PiperSynthesizer(Path("voice.onnx"), Path("custom.json"))
-        with mock.patch.dict(sys.modules, {"piper": fake_module}):
-            voice = synth._load_voice()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            model = root / "voice.onnx"
+            config = root / "custom.json"
+            model.write_bytes(b"model")
+            config.write_text("{}", encoding="utf-8")
+            synth = tts_worker.PiperSynthesizer(model, config)
+            with mock.patch.dict(sys.modules, {"piper": fake_module}):
+                voice = synth._load_voice()
 
         self.assertIsNotNone(voice)
-        self.assertEqual(calls, [("voice.onnx", "custom.json")])
+        self.assertEqual(calls, [(str(model), str(config))])
 
     def test_real_synthesis_error_is_not_masked_by_wave_close(self):
         class BrokenVoice:
