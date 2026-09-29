@@ -1,8 +1,9 @@
-"""Isolated Piper worker for Attendance offline Vietnamese TTS.
+"""Isolated Vietnamese TTS worker using the pinned NGHI linguistic frontend.
 
-On Windows, the worker prefers the official native Piper executable so Vietnamese
-text bypasses the Python ``espeakbridge`` path that can emit invalid Unicode
-surrogates. Python Piper remains available as a fallback for non-Windows/testing.
+The Attendance server process never imports Piper or NGHI. This worker keeps a
+long-lived Node sidecar for NGHI text processing and feeds the returned exact
+phoneme IDs directly to Piper/ONNX inference. Stock Piper phonemization is not
+used for production Vietnamese synthesis.
 """
 
 from __future__ import annotations
@@ -10,31 +11,19 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
+import struct
 import subprocess
 import sys
-import unicodedata
+import uuid
 import wave
 from pathlib import Path
 from typing import Callable, TextIO
 
-DEFAULT_SENTENCE_SILENCE_SECONDS = 0.45
 DEFAULT_SMOKE_TEXT = (
-    "Nguyễn Thị THÚY QUỲNH, HUỲNH QUỐC PHƯỚC, VÕ TRỌNG NGHĨA, ĐẶNG HOÀNG YẾN."
+    "Nguyễn Thị THÚY QUỲNH, HUỲNH QUỐC PHƯỚC đã điểm danh thành công. "
+    "Mời sinh viên tiếp theo."
 )
-
-
-def prepare_spoken_name(text: str) -> str:
-    """Normalize a student name for Vietnamese eSpeak/Piper pronunciation.
-
-    eSpeak may interpret an uppercase token inside an otherwise mixed-case name
-    as an acronym (for example ``THU`` -> ``tê hát u``). Student names do not
-    need acronym semantics, so the synthesis-only representation is lowercased.
-    Display/database text is left untouched by this worker.
-    """
-    normalized = unicodedata.normalize("NFC", str(text or ""))
-    normalized = re.sub(r"\s+", " ", normalized).strip()
-    return normalized.lower()
+NGHI_COMMIT_DEFAULT = "46d160da32041f7e176607203b958069265df7da"
 
 
 def handle_request(request: dict, synthesize: Callable[[str, Path], None]) -> dict:
@@ -66,16 +55,11 @@ def serve_streams(
     stderr: TextIO,
     synthesize: Callable[[str, Path], None],
 ) -> None:
-    """Serve newline-delimited JSON requests until EOF.
-
-    stdout is reserved exclusively for machine-readable protocol responses.
-    Human-readable diagnostics are written to stderr.
-    """
+    """Serve newline-delimited JSON requests until EOF."""
     for raw_line in stdin:
         line = raw_line.strip()
         if not line:
             continue
-
         try:
             request = json.loads(line)
         except json.JSONDecodeError as exc:
@@ -89,99 +73,56 @@ def serve_streams(
                     file=stderr,
                     flush=True,
                 )
-
         stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
         stdout.flush()
 
 
-class PiperSynthesizer:
-    """Lazily load one Python Piper voice and synthesize WAV files."""
-
-    def __init__(self, model_path: Path, config_path: Path):
-        self.model_path = Path(model_path)
-        self.config_path = Path(config_path)
-        self._voice = None
-
-    def _load_voice(self):
-        if self._voice is not None:
-            return self._voice
-        if not self.model_path.is_file():
-            raise FileNotFoundError(f"Piper model not found: {self.model_path}")
-        if not self.config_path.is_file():
-            raise FileNotFoundError(f"Piper config not found: {self.config_path}")
-
-        from piper import PiperVoice
-
-        self._voice = PiperVoice.load(str(self.model_path))
-        return self._voice
-
-    def __call__(self, text: str, output: Path) -> None:
-        output = Path(output)
-        output.parent.mkdir(parents=True, exist_ok=True)
-        spoken_text = prepare_spoken_name(text)
-        if not spoken_text:
-            raise ValueError("Synthesis text is empty after normalization")
-        voice = self._load_voice()
-
-        wav_file = wave.open(str(output), "wb")
-        try:
-            voice.synthesize_wav(spoken_text, wav_file)
-        except Exception:
-            # Piper sets the WAV format only after the first audio chunk. If
-            # phonemization/model inference fails first, wave.close() can mask
-            # the real exception with '# channels not specified'.
-            try:
-                wav_file.close()
-            except Exception:
-                pass
-            try:
-                output.unlink(missing_ok=True)
-            except OSError:
-                pass
-            raise
-        else:
-            wav_file.close()
-
-
-class NativePiperSynthesizer:
-    """Keep one native Piper process alive and feed it JSONL synthesis jobs."""
+class NghiFrontendClient:
+    """Long-lived private NDJSON client for the pinned NGHI Node sidecar."""
 
     def __init__(
         self,
-        executable: Path,
-        model_path: Path,
-        config_path: Path,
+        node_exe: Path,
+        adapter_path: Path,
+        nghi_root: Path,
+        voice_config: Path,
+        expected_commit: str,
         process_factory=subprocess.Popen,
     ):
-        self.executable = Path(executable)
-        self.model_path = Path(model_path)
-        self.config_path = Path(config_path)
+        self.node_exe = Path(node_exe)
+        self.adapter_path = Path(adapter_path)
+        self.nghi_root = Path(nghi_root)
+        self.voice_config = Path(voice_config)
+        self.expected_commit = str(expected_commit)
         self._process_factory = process_factory
         self._process = None
+
+    def _new_request_id(self) -> str:
+        return uuid.uuid4().hex
 
     def _start_process(self):
         if self._process is not None and self._process.poll() is None:
             return self._process
 
-        # Real runtime validates files here. Tests inject a fake process factory.
         if self._process_factory is subprocess.Popen:
-            if not self.executable.is_file():
-                raise FileNotFoundError(f"Native Piper executable not found: {self.executable}")
-            if not self.model_path.is_file():
-                raise FileNotFoundError(f"Piper model not found: {self.model_path}")
-            if not self.config_path.is_file():
-                raise FileNotFoundError(f"Piper config not found: {self.config_path}")
+            for path, label in (
+                (self.node_exe, "Node runtime"),
+                (self.adapter_path, "NGHI adapter"),
+                (self.nghi_root, "NGHI checkout"),
+                (self.voice_config, "voice config"),
+            ):
+                if not path.exists():
+                    raise FileNotFoundError(f"{label} not found: {path}")
 
         command = [
-            str(self.executable),
-            "--model",
-            str(self.model_path),
-            "--config",
-            str(self.config_path),
-            "--json-input",
-            "--sentence-silence",
-            str(DEFAULT_SENTENCE_SILENCE_SECONDS),
-            "--quiet",
+            str(self.node_exe),
+            str(self.adapter_path),
+            "--nghi-root",
+            str(self.nghi_root),
+            "--voice-config",
+            str(self.voice_config),
+            "--expected-commit",
+            self.expected_commit,
         ]
         kwargs = {
             "stdin": subprocess.PIPE,
@@ -190,11 +131,10 @@ class NativePiperSynthesizer:
             "text": True,
             "encoding": "utf-8",
             "bufsize": 1,
-            "cwd": str(self.executable.parent),
+            "cwd": str(self.adapter_path.parent),
         }
         if os.name == "nt":
             kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-
         self._process = self._process_factory(command, **kwargs)
         return self._process
 
@@ -211,80 +151,173 @@ class NativePiperSynthesizer:
         try:
             if process.poll() is None:
                 process.terminate()
-                process.wait(timeout=2)
-        except (OSError, subprocess.TimeoutExpired):
-            try:
-                process.kill()
-            except (AttributeError, OSError):
-                pass
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=2)
+        except (OSError, AttributeError):
+            pass
 
-    def __call__(self, text: str, output: Path) -> None:
-        output = Path(output)
-        output.parent.mkdir(parents=True, exist_ok=True)
-        spoken_text = prepare_spoken_name(text)
-        if not spoken_text:
-            raise ValueError("Synthesis text is empty after normalization")
+    @staticmethod
+    def _validate_response(response: dict, request_id: str) -> dict:
+        if not isinstance(response, dict):
+            raise RuntimeError("NGHI frontend returned a non-object response")
+        if response.get("id") != request_id:
+            raise RuntimeError("NGHI frontend response ID mismatch")
+        if not response.get("ok"):
+            raise RuntimeError(response.get("error") or "NGHI frontend failed")
+        chunks = response.get("chunks")
+        if not isinstance(chunks, list) or not chunks:
+            raise ValueError("NGHI frontend returned empty chunks")
+        validated = []
+        for chunk in chunks:
+            if not isinstance(chunk, dict) or not isinstance(chunk.get("text"), str):
+                raise ValueError("NGHI frontend returned invalid chunk text")
+            ids = chunk.get("phoneme_ids")
+            if not isinstance(ids, list) or not ids:
+                raise ValueError("NGHI frontend returned empty phoneme ids")
+            if any(isinstance(value, bool) or not isinstance(value, int) for value in ids):
+                raise ValueError("NGHI frontend phoneme ids must be scalar integers")
+            validated.append({"text": chunk["text"], "phoneme_ids": list(ids)})
+        return {
+            "processed_text": str(response.get("processed_text") or ""),
+            "chunks": validated,
+        }
 
+    def _request_once(self, text: str) -> dict:
         process = self._start_process()
         if process.stdin is None or process.stdout is None:
-            raise RuntimeError("Native Piper process has no active protocol pipes")
-
-        request = {
-            "text": spoken_text,
-            "output_file": str(output),
-        }
+            raise RuntimeError("NGHI frontend sidecar has no active protocol pipes")
+        request_id = self._new_request_id()
+        request = {"id": request_id, "action": "frontend", "text": text}
         try:
             process.stdin.write(json.dumps(request, ensure_ascii=False) + "\n")
             process.stdin.flush()
         except (BrokenPipeError, OSError, UnicodeError) as exc:
-            self.close()
-            raise RuntimeError(f"Native Piper input failed: {exc}") from exc
+            raise RuntimeError(f"NGHI frontend input failed: {exc}") from exc
+        line = process.stdout.readline()
+        if not line:
+            raise RuntimeError("NGHI frontend sidecar exited before response")
+        try:
+            response = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("NGHI frontend returned malformed JSON response") from exc
+        return self._validate_response(response, request_id)
 
-        ack = process.stdout.readline()
-        if not ack:
-            return_code = process.poll()
-            self.close()
-            raise RuntimeError(f"Native Piper exited before producing audio (code={return_code})")
+    def process(self, text: str) -> dict:
+        last_error = None
+        for attempt in range(2):
+            try:
+                return self._request_once(text)
+            except (RuntimeError, ValueError, OSError, UnicodeError) as exc:
+                last_error = exc
+                self.close()
+                if attempt == 0:
+                    continue
+        raise last_error or RuntimeError("NGHI frontend failed")
 
-        acknowledged = Path(ack.strip())
-        if os.path.normcase(os.path.abspath(str(acknowledged))) != os.path.normcase(
-            os.path.abspath(str(output))
-        ):
-            raise RuntimeError(
-                f"Native Piper acknowledged unexpected output path: {acknowledged}"
-            )
-        if not output.is_file():
-            raise RuntimeError("Native Piper acknowledged output but WAV file is missing")
+
+class NghiOnnxSynthesizer:
+    """Synthesize from exact NGHI phoneme IDs without Piper text processing."""
+
+    def __init__(self, model_path: Path, config_path: Path, frontend: NghiFrontendClient):
+        self.model_path = Path(model_path)
+        self.config_path = Path(config_path)
+        self.frontend = frontend
+        self._voice = None
+
+    def _load_voice(self):
+        if self._voice is not None:
+            return self._voice
+        if not self.model_path.is_file():
+            raise FileNotFoundError(f"Piper model not found: {self.model_path}")
+        if not self.config_path.is_file():
+            raise FileNotFoundError(f"Piper config not found: {self.config_path}")
+        from piper import PiperVoice
+        self._voice = PiperVoice.load(str(self.model_path), config_path=str(self.config_path))
+        return self._voice
+
+    def _make_synthesis_config(self):
+        from piper import SynthesisConfig
+        return SynthesisConfig(
+            speaker_id=0,
+            length_scale=1.0,
+            noise_scale=0.667,
+            noise_w_scale=0.8,
+            normalize_audio=False,
+        )
+
+    @staticmethod
+    def _audio_to_pcm16(audio) -> bytes:
+        frames = bytearray()
+        for raw in audio:
+            sample = max(-1.0, min(1.0, float(raw)))
+            value = int(sample * (32768 if sample < 0 else 32767))
+            value = max(-32768, min(32767, value))
+            frames.extend(struct.pack("<h", value))
+        return bytes(frames)
+
+    def __call__(self, text: str, output: Path) -> None:
+        output = Path(output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            frontend_result = self.frontend.process(text)
+            chunks = frontend_result["chunks"]
+            voice = self._load_voice()
+            syn_config = self._make_synthesis_config()
+            with wave.open(str(output), "wb") as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(int(voice.config.sample_rate))
+                for chunk in chunks:
+                    audio = voice.phoneme_ids_to_audio(
+                        chunk["phoneme_ids"],
+                        syn_config=syn_config,
+                        include_alignments=False,
+                    )
+                    if isinstance(audio, tuple):
+                        audio = audio[0]
+                    wav_file.writeframesraw(self._audio_to_pcm16(audio))
+        except Exception:
+            try:
+                output.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
+
+    def close(self) -> None:
+        self.frontend.close()
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Attendance isolated Piper TTS worker")
+    parser = argparse.ArgumentParser(description="Attendance isolated NGHI/Piper TTS worker")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--serve", action="store_true", help="Serve NDJSON requests on stdin/stdout")
-    mode.add_argument("--smoke-test", metavar="OUTPUT_WAV", help="Synthesize Vietnamese student names")
+    mode.add_argument("--smoke-test", metavar="OUTPUT_WAV", help="Synthesize Vietnamese smoke text")
     parser.add_argument("--model", required=True, help="Path to Piper .onnx model")
     parser.add_argument("--config", required=True, help="Path to matching .onnx.json config")
-    parser.add_argument(
-        "--native-piper",
-        help="Path to native Piper executable. Preferred on Windows to avoid Python espeakbridge.",
-    )
+    parser.add_argument("--node", required=True, help="Path to portable Node executable")
+    parser.add_argument("--nghi-adapter", required=True, help="Path to Attendance NGHI frontend adapter")
+    parser.add_argument("--nghi-root", required=True, help="Path to pinned NGHI checkout")
+    parser.add_argument("--nghi-commit", default=NGHI_COMMIT_DEFAULT, help="Expected NGHI git commit")
     return parser
 
 
 def main(argv=None) -> int:
     args = _build_parser().parse_args(argv)
-    if args.native_piper:
-        synthesizer = NativePiperSynthesizer(
-            Path(args.native_piper), Path(args.model), Path(args.config)
-        )
-    else:
-        synthesizer = PiperSynthesizer(Path(args.model), Path(args.config))
-
+    frontend = NghiFrontendClient(
+        Path(args.node),
+        Path(args.nghi_adapter),
+        Path(args.nghi_root),
+        Path(args.config),
+        args.nghi_commit,
+    )
+    synthesizer = NghiOnnxSynthesizer(Path(args.model), Path(args.config), frontend)
     try:
         if args.serve:
             serve_streams(sys.stdin, sys.stdout, sys.stderr, synthesizer)
             return 0
-
         output = Path(args.smoke_test)
         response = handle_request(
             {
@@ -300,9 +333,7 @@ def main(argv=None) -> int:
             return 1
         return 0
     finally:
-        close = getattr(synthesizer, "close", None)
-        if callable(close):
-            close()
+        synthesizer.close()
 
 
 if __name__ == "__main__":
