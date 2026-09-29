@@ -146,19 +146,28 @@ Nếu scanner của bạn dùng **Web Serial** hoặc **WebUSB**, bạn cần co
 
 ## Offline Vietnamese TTS cho Random Picker
 
-Phiên bản server Python hiện tại có thể đọc tên sinh viên bằng Piper chạy hoàn toàn local. Trên Windows, Attendance dùng **Piper native** thay vì Python `piper-tts/espeakbridge`; cách này tránh lỗi Unicode surrogate khi phonemize tên tiếng Việt. Random Picker ưu tiên WAV đã cache; nếu TTS local chưa sẵn sàng hoặc phát audio lỗi, hệ thống tự quay về giọng `speechSynthesis` của trình duyệt.
+Phiên bản server Python hiện tại đọc tên sinh viên bằng **VieNeu-TTS v3 Turbo** chạy local trên CPU qua ONNX Runtime. Voice mặc định là **Thùy Dung**, preset nữ miền Nam. Random Picker ưu tiên WAV đã cache; nếu TTS local chưa sẵn sàng hoặc phát audio lỗi, hệ thống tự quay về `speechSynthesis` của trình duyệt.
+
+VieNeu tự xử lý chuẩn hóa tiếng Việt, chia câu, khoảng nghỉ và ngữ điệu. Attendance không chèn khoảng im lặng thủ công và không dùng Piper/NGHI/Node trong pipeline production.
 
 ### Cài TTS một lần
 
-Cần Internet cho đúng bước này. Trong thư mục Attendance trên Windows chạy:
+Cần Internet cho đúng bước setup này. Trong thư mục Attendance trên Windows chạy:
 
 ```powershell
 .\Setup-TTS.bat
 ```
 
-Script tạo `.venv-tts` riêng cho worker, tải Piper native Windows `2023.11.14-2`, tải voice tiếng Việt NGHI-TTS `calmwoman3688`, kiểm tra SHA-256 của model và config, rồi chạy smoke test bằng nhiều tên Việt có dấu. Python `piper-tts` không còn được dùng để phonemize trên Windows.
+Script sẽ:
 
-Voice được pin vào một revision cố định của bộ model `sannht/vi_voice` để tránh việc model thay đổi âm thầm. Config của `calmwoman3688` dùng eSpeak voice `vi` và sample rate 22050 Hz.
+1. tạo hoặc tái sử dụng `.venv-tts` riêng;
+2. cài đúng `vieneu==3.8.3`;
+3. dùng cache Hugging Face riêng tại `tts/runtime/vieneu/hf`;
+4. chạy một smoke synthesis online để tải đủ model/codec cần thiết;
+5. khởi động **một Python process mới** với `HF_HUB_OFFLINE=1` và synthesize lại;
+6. chỉ ghi `tts/runtime/vieneu/setup.json` nếu lượt offline thật sự thành công.
+
+Do đó thông báo `[OK]` của setup đồng nghĩa máy đã chứng minh được pipeline có thể khởi động và tạo WAV mà không truy cập Hub.
 
 Kiểm tra trạng thái bất kỳ lúc nào:
 
@@ -166,18 +175,21 @@ Kiểm tra trạng thái bất kỳ lúc nào:
 .\Check-TTS.bat
 ```
 
-Trạng thái sẵn sàng trên Windows có dạng:
+Trạng thái sẵn sàng có dạng:
 
 ```text
-Piper: READY
-Voice: calmwoman3688
-Backend: native-piper
-Runtime: OK
-Model: OK
+Voice: Thùy Dung
+Engine: vieneu-v3-turbo
+Version: 3.8.3
+Backend: onnx-fp32
+Runtime: READY
+Offline assets: READY
 Cache: 42 WAV file(s)
+
+[OK] VieNeu offline TTS san sang.
 ```
 
-Nếu máy đã cài TTS bằng phiên bản cũ, hãy `git pull` rồi chạy lại `Setup-TTS.bat`. Script chỉ tải Piper native nếu runtime chưa có; model/config đã đúng sẽ được tái sử dụng. Cache format được version hóa nên WAV tạo bởi backend cũ tự động không được tái sử dụng.
+Nếu `Runtime` hoặc `Offline assets` báo `MISSING`, hãy kết nối Internet và chạy lại `Setup-TTS.bat`. Attendance không tự tải model trong lúc điểm danh; worker production luôn chạy với `HF_HUB_OFFLINE=1`.
 
 ### Chạy Attendance
 
@@ -187,7 +199,7 @@ Dùng launcher Python canonical, có thể chọn port:
 .\Start-Server.bat 8080
 ```
 
-Sau khi `Setup-TTS.bat` đã hoàn tất một lần, việc tạo và phát giọng tên sinh viên không cần Internet. Khi thêm, import hoặc cập nhật sinh viên thành công, server sẽ precache tên trong background. Lúc Random Picker gọi một sinh viên từ database, server trả WAV local; cache hit không chạy Piper lần nữa.
+Sau khi `Setup-TTS.bat` hoàn tất một lần, việc tạo và phát giọng tên sinh viên không cần Internet. Worker giữ một VieNeu engine nóng để tránh load model lại cho từng tên. Khi thêm, import hoặc cập nhật sinh viên thành công, server sẽ precache tên trong background. Cache hit không chạy inference lần nữa.
 
 Các dữ liệu local sau không được commit lên Git:
 
@@ -197,6 +209,8 @@ tts/voices/
 tts/runtime/
 tts_cache/
 ```
+
+Các runtime Piper/NGHI cũ nếu còn trên ổ đĩa được bỏ qua; setup mới không xóa dữ liệu local đó. Cache format đã đổi nên WAV từ backend cũ không được dùng lại.
 
 Nếu TTS chưa sẵn sàng, Attendance vẫn khởi động và hoạt động; Random Picker dùng giọng trình duyệt làm fallback. Danh sách Excel nạp trực tiếp vào Random Picker cũng tiếp tục dùng fallback này vì không có định danh lớp/database.
 
