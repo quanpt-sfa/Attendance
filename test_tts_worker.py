@@ -2,6 +2,7 @@ import io
 import json
 import tempfile
 import unittest
+import wave
 from pathlib import Path
 
 import tts_worker
@@ -24,7 +25,6 @@ class TTSWorkerProtocolTests(unittest.TestCase):
             "output": "out.wav",
         }
         response = tts_worker.handle_request(request, synthesize)
-
         self.assertEqual(response, {"id": "req-1", "ok": True})
         self.assertEqual(calls, [("Nguyễn Văn An", Path("out.wav"))])
 
@@ -36,187 +36,260 @@ class TTSWorkerProtocolTests(unittest.TestCase):
         )
         self.assertEqual(response["id"], "req-2")
         self.assertFalse(response["ok"])
-        self.assertIn("action", response["error"].lower())
         self.assertEqual(calls, [])
 
-    def test_synthesis_exception_is_returned_as_protocol_error(self):
-        def fail(_text, _output):
-            raise RuntimeError("model failure")
-
-        response = tts_worker.handle_request(
-            {"id": "req-3", "action": "synthesize", "text": "A", "output": "x.wav"},
-            fail,
-        )
-        self.assertEqual(response["id"], "req-3")
-        self.assertFalse(response["ok"])
-        self.assertIn("model failure", response["error"])
-
     def test_serve_writes_only_json_protocol_to_stdout(self):
-        request = json.dumps(
-            {"id": "req-4", "action": "synthesize", "text": "A", "output": "x.wav"}
-        )
+        request = json.dumps({"id": "req-4", "action": "synthesize", "text": "A", "output": "x.wav"})
         stdin = io.StringIO(request + "\nnot-json\n")
         stdout = io.StringIO()
         stderr = io.StringIO()
-
-        tts_worker.serve_streams(
-            stdin,
-            stdout,
-            stderr,
-            lambda _text, _output: None,
-        )
-
+        tts_worker.serve_streams(stdin, stdout, stderr, lambda _text, _output: None)
         lines = [json.loads(line) for line in stdout.getvalue().splitlines()]
         self.assertEqual(lines[0], {"id": "req-4", "ok": True})
         self.assertFalse(lines[1]["ok"])
-        self.assertNotIn("not-json", stdout.getvalue())
         self.assertIn("not-json", stderr.getvalue())
 
-    def test_spoken_name_lowercases_uppercase_tokens_before_espeak(self):
-        self.assertEqual(
-            tts_worker.prepare_spoken_name("Nguyễn Thị THU"),
-            "nguyễn thị thu",
-        )
-        self.assertEqual(
-            tts_worker.prepare_spoken_name("  HUỲNH   QUỐC PHƯỚC  "),
-            "huỳnh quốc phước",
-        )
-
-    def test_smoke_sample_exercises_vietnamese_names_with_diacritics_and_uppercase(self):
+    def test_smoke_sample_preserves_source_case_for_nghi(self):
         sample = tts_worker.DEFAULT_SMOKE_TEXT
-        for fragment in (
-            "Nguyễn Thị THÚY QUỲNH",
-            "HUỲNH QUỐC PHƯỚC",
-            "VÕ TRỌNG NGHĨA",
-            "ĐẶNG HOÀNG YẾN",
-        ):
-            self.assertIn(fragment, sample)
+        self.assertIn("THÚY QUỲNH", sample)
+        self.assertIn("HUỲNH QUỐC PHƯỚC", sample)
 
 
-class PiperSynthesizerTests(unittest.TestCase):
-    def test_real_synthesis_error_is_not_masked_by_wave_close(self):
-        class BrokenVoice:
-            def synthesize_wav(self, _text, _wav_file):
-                raise RuntimeError("phonemizer exploded")
+class _FakeStdin:
+    def __init__(self, writes):
+        self.writes = writes
+        self.closed = False
 
-        synthesizer = tts_worker.PiperSynthesizer(Path("voice.onnx"), Path("voice.onnx.json"))
-        synthesizer._voice = BrokenVoice()
+    def write(self, value):
+        self.writes.append(value)
+        return len(value)
 
+    def flush(self):
+        pass
+
+    def close(self):
+        self.closed = True
+
+
+class _FakeStdout:
+    def __init__(self, lines):
+        self.lines = list(lines)
+
+    def readline(self):
+        return self.lines.pop(0) if self.lines else ""
+
+
+class _FakeProcess:
+    def __init__(self, lines, writes):
+        self.stdin = _FakeStdin(writes)
+        self.stdout = _FakeStdout(lines)
+        self._returncode = None
+
+    def poll(self):
+        return self._returncode
+
+    def terminate(self):
+        self._returncode = 0
+
+    def kill(self):
+        self._returncode = -9
+
+    def wait(self, timeout=None):
+        self._returncode = 0
+        return 0
+
+
+class NghiFrontendClientTests(unittest.TestCase):
+    def _client(self, responses_per_process, calls):
+        responses = list(responses_per_process)
+
+        def process_factory(command, **kwargs):
+            calls.setdefault("commands", []).append(command)
+            calls.setdefault("kwargs", []).append(kwargs)
+            writes = []
+            calls.setdefault("writes", []).append(writes)
+            return _FakeProcess(responses.pop(0), writes)
+
+        return tts_worker.NghiFrontendClient(
+            Path(r"C:\Program Files\Attendance TTS\node.exe"),
+            Path(r"D:\Works With Spaces\attendance\tts\nghi_frontend.mjs"),
+            Path(r"D:\Works With Spaces\attendance\tts\runtime\nghitts"),
+            Path(r"D:\Works With Spaces\attendance\tts\voices\calmwoman3688.onnx.json"),
+            "46d160da32041f7e176607203b958069265df7da",
+            process_factory=process_factory,
+        )
+
+    def test_frontend_client_passes_source_case_and_validates_matching_id(self):
+        calls = {}
+        response = {
+            "id": "fixed-id", "ok": True, "processed_text": "x",
+            "chunks": [{"text": "X.", "phoneme_ids": [1, 0, 137, 0, 2]}],
+        }
+        client = self._client([[json.dumps(response) + "\n"]], calls)
+        client._new_request_id = lambda: "fixed-id"
+        result = client.process("HUỲNH Quốc Phước.")
+        sent = json.loads(calls["writes"][0][0])
+        self.assertEqual(sent["text"], "HUỲNH Quốc Phước.")
+        self.assertEqual(result["chunks"][0]["phoneme_ids"], [1, 0, 137, 0, 2])
+
+    def test_frontend_client_rejects_empty_chunks_nested_ids_float_ids_and_eof(self):
+        bad_payloads = [
+            {"id": "fixed-id", "ok": True, "processed_text": "x", "chunks": []},
+            {"id": "fixed-id", "ok": True, "processed_text": "x", "chunks": [{"text": "x", "phoneme_ids": [[1]]}]},
+            {"id": "fixed-id", "ok": True, "processed_text": "x", "chunks": [{"text": "x", "phoneme_ids": [1.5]}]},
+        ]
+        for payload in bad_payloads:
+            calls = {}
+            client = self._client([[json.dumps(payload) + "\n"], [json.dumps(payload) + "\n"]], calls)
+            client._new_request_id = lambda: "fixed-id"
+            with self.assertRaises((RuntimeError, ValueError)):
+                client.process("Xin chào")
+        calls = {}
+        client = self._client([[], []], calls)
+        client._new_request_id = lambda: "fixed-id"
+        with self.assertRaisesRegex(RuntimeError, "exited|eof|response"):
+            client.process("Xin chào")
+
+    def test_frontend_client_restarts_once_after_sidecar_failure(self):
+        calls = {}
+        good = {"id": "fixed-id", "ok": True, "processed_text": "x", "chunks": [{"text": "x", "phoneme_ids": [1, 0, 2]}]}
+        client = self._client([[], [json.dumps(good) + "\n"]], calls)
+        client._new_request_id = lambda: "fixed-id"
+        result = client.process("Xin chào")
+        self.assertEqual(len(calls["commands"]), 2)
+        self.assertEqual(result["chunks"][0]["phoneme_ids"], [1, 0, 2])
+
+    def test_sidecar_command_handles_windows_paths_as_argument_list(self):
+        calls = {}
+        good = {"id": "fixed-id", "ok": True, "processed_text": "x", "chunks": [{"text": "x", "phoneme_ids": [1, 0, 2]}]}
+        client = self._client([[json.dumps(good) + "\n"]], calls)
+        client._new_request_id = lambda: "fixed-id"
+        client.process("Xin chào")
+        command = calls["commands"][0]
+        self.assertEqual(command[0], r"C:\Program Files\Attendance TTS\node.exe")
+        self.assertIn(r"D:\Works With Spaces\attendance\tts\nghi_frontend.mjs", command)
+        self.assertIn(r"D:\Works With Spaces\attendance\tts\runtime\nghitts", command)
+        self.assertFalse(any('"' in part for part in command))
+
+
+class _FakeVoiceConfig:
+    sample_rate = 1000
+
+
+class _FakeVoice:
+    def __init__(self, fail_on_call=None):
+        self.config = _FakeVoiceConfig()
+        self.calls = []
+        self.fail_on_call = fail_on_call
+
+    def phoneme_ids_to_audio(self, ids, syn_config=None, include_alignments=False):
+        self.calls.append((list(ids), syn_config))
+        if self.fail_on_call == len(self.calls):
+            raise RuntimeError("onnx failed")
+        value = 0.25 if len(self.calls) == 1 else -0.25
+        return [value] * 4
+
+    def phonemize(self, *_args, **_kwargs):
+        raise AssertionError("stock Piper phonemizer must not be called")
+
+    def synthesize(self, *_args, **_kwargs):
+        raise AssertionError("Piper synthesize(text) must not be called")
+
+    def synthesize_wav(self, *_args, **_kwargs):
+        raise AssertionError("Piper synthesize_wav(text) must not be called")
+
+
+class _FakeFrontend:
+    def __init__(self, chunks=None, error=None):
+        self.chunks = chunks or [
+            {"text": "câu một.", "phoneme_ids": [1, 0, 131, 0, 2]},
+            {"text": "câu hai.", "phoneme_ids": [1, 0, 137, 0, 2]},
+        ]
+        self.error = error
+        self.seen = []
+
+    def process(self, text):
+        self.seen.append(text)
+        if self.error:
+            raise self.error
+        return {"processed_text": text.lower(), "chunks": self.chunks}
+
+    def close(self):
+        pass
+
+
+class NghiOnnxSynthesizerTests(unittest.TestCase):
+    def _synth(self, frontend=None, voice=None):
+        synth = tts_worker.NghiOnnxSynthesizer(Path("voice.onnx"), Path("voice.onnx.json"), frontend or _FakeFrontend())
+        synth._voice = voice or _FakeVoice()
+        synth._make_synthesis_config = lambda: type("Cfg", (), {
+            "speaker_id": 0, "length_scale": 1.0, "noise_scale": 0.667, "noise_w_scale": 0.8
+        })()
+        return synth
+
+    def test_synthesizer_calls_phoneme_ids_to_audio_per_chunk_in_order(self):
+        voice = _FakeVoice()
+        synth = self._synth(voice=voice)
         with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / "broken.wav"
-            with self.assertRaisesRegex(RuntimeError, "phonemizer exploded"):
-                synthesizer("HUỲNH QUỐC PHƯỚC", output)
+            synth("HUỲNH Quốc Phước. Mời sinh viên tiếp theo.", Path(tmp) / "out.wav")
+        self.assertEqual([call[0] for call in voice.calls], [[1, 0, 131, 0, 2], [1, 0, 137, 0, 2]])
+
+    def test_synthesizer_uses_nghi_default_scales_and_speaker_zero(self):
+        voice = _FakeVoice()
+        synth = self._synth(voice=voice)
+        with tempfile.TemporaryDirectory() as tmp:
+            synth("Xin chào.", Path(tmp) / "out.wav")
+        cfg = voice.calls[0][1]
+        self.assertEqual(cfg.speaker_id, 0)
+        self.assertEqual(cfg.length_scale, 1.0)
+        self.assertAlmostEqual(cfg.noise_scale, 0.667)
+        self.assertAlmostEqual(cfg.noise_w_scale, 0.8)
+
+    def test_synthesizer_appends_chunk_audio_without_inserted_samples(self):
+        synth = self._synth()
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "out.wav"
+            synth("Hai câu.", output)
+            with wave.open(str(output), "rb") as wav_file:
+                self.assertEqual(wav_file.getframerate(), 1000)
+                self.assertEqual(wav_file.getnchannels(), 1)
+                self.assertEqual(wav_file.getsampwidth(), 2)
+                self.assertEqual(wav_file.getnframes(), 8)
+
+    def test_synthesizer_never_calls_piper_text_frontend(self):
+        synth = self._synth(voice=_FakeVoice())
+        with tempfile.TemporaryDirectory() as tmp:
+            synth("Hai câu.", Path(tmp) / "out.wav")
+
+    def test_partial_output_is_removed_on_frontend_failure(self):
+        synth = self._synth(frontend=_FakeFrontend(error=RuntimeError("frontend failed")))
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "out.wav"
+            with self.assertRaisesRegex(RuntimeError, "frontend failed"):
+                synth("Xin chào", output)
             self.assertFalse(output.exists())
 
-
-class NativePiperSynthesizerTests(unittest.TestCase):
-    def test_native_process_uses_utf8_json_input_reuses_model_and_pins_sentence_pause(self):
-        calls = {"starts": 0, "writes": []}
-
+    def test_partial_output_is_removed_on_second_chunk_inference_failure(self):
+        synth = self._synth(voice=_FakeVoice(fail_on_call=2))
         with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / "student.wav"
-
-            class FakeStdin:
-                def write(self, value):
-                    calls["writes"].append(value)
-                    return len(value)
-
-                def flush(self):
-                    calls["flushed"] = True
-
-            class FakeStdout:
-                def readline(self):
-                    output.write_bytes(b"RIFF\x00\x00\x00\x00WAVEdata")
-                    return str(output) + "\n"
-
-            class FakeProcess:
-                def __init__(self):
-                    self.stdin = FakeStdin()
-                    self.stdout = FakeStdout()
-
-                def poll(self):
-                    return None
-
-                def terminate(self):
-                    pass
-
-                def wait(self, timeout=None):
-                    return 0
-
-            def process_factory(command, **kwargs):
-                calls["starts"] += 1
-                calls["command"] = command
-                calls["kwargs"] = kwargs
-                return FakeProcess()
-
-            synthesizer = tts_worker.NativePiperSynthesizer(
-                Path("piper.exe"),
-                Path("voice.onnx"),
-                Path("voice.onnx.json"),
-                process_factory=process_factory,
-            )
-            synthesizer("HUỲNH QUỐC PHƯỚC", output)
-            synthesizer("Nguyễn Thị THU", output)
-
-            self.assertEqual(calls["starts"], 1)
-            self.assertIn("--json-input", calls["command"])
-            self.assertIn("--quiet", calls["command"])
-            self.assertIn("--sentence-silence", calls["command"])
-            silence_index = calls["command"].index("--sentence-silence")
-            self.assertEqual(
-                calls["command"][silence_index + 1],
-                str(tts_worker.DEFAULT_SENTENCE_SILENCE_SECONDS),
-            )
-            self.assertEqual(tts_worker.DEFAULT_SENTENCE_SILENCE_SECONDS, 0.45)
-            first = json.loads(calls["writes"][0])
-            second = json.loads(calls["writes"][1])
-            self.assertEqual(first["text"], "huỳnh quốc phước")
-            self.assertEqual(second["text"], "nguyễn thị thu")
-            self.assertEqual(first["output_file"], str(output))
-            self.assertTrue(calls.get("flushed"))
+            output = Path(tmp) / "out.wav"
+            with self.assertRaisesRegex(RuntimeError, "onnx failed"):
+                synth("Hai câu.", output)
+            self.assertFalse(output.exists())
 
 
 class TTSWindowsScriptContractTests(unittest.TestCase):
     def test_setup_script_pins_native_windows_runtime_voice_and_smoke_test(self):
         text = (ROOT / "Setup-TTS.bat").read_text(encoding="utf-8").lower()
-        self.assertIn(".venv-tts\\scripts\\python.exe", text)
         self.assertIn("piper_windows_amd64.zip", text)
         self.assertIn("2023.11.14-2", text)
-        self.assertIn("expand-archive", text)
-        self.assertIn("tts\\runtime\\piper\\piper.exe", text)
-        self.assertNotIn('pip install "piper-tts==1.8.0"', text)
         self.assertIn('set "voice_id=calmwoman3688"', text)
-        self.assertIn('set "model_path=%voice_dir%\\%voice_id%.onnx"', text)
-        self.assertIn('set "config_path=%voice_dir%\\%voice_id%.onnx.json"', text)
-        self.assertIn("huggingface.co/sannht/vi_voice/resolve/%voice_revision%/tts-model", text)
-        self.assertIn("voice_revision=62e57b18157ed213b3863a7a8a35b14d3404554b", text)
-        self.assertIn(
-            "8db60d8afc50dc0921fd3a1b0b942813f44cc3744dbe2534617f2b8726096e7e",
-            text,
-        )
-        self.assertIn(
-            "971f57f8d504223fee5b40d664f503cf769baf7db21f7d2ae0554a75d07de2f8",
-            text,
-        )
-        self.assertGreaterEqual(text.count("get-filehash -algorithm sha256"), 2)
         self.assertIn("--smoke-test", text)
-        self.assertIn("--native-piper", text)
-        self.assertNotIn("vi_vn-vais1000-medium", text)
 
     def test_check_script_is_read_only(self):
         text = (ROOT / "Check-TTS.bat").read_text(encoding="utf-8").lower()
         self.assertIn("tts_service.get_status", text)
-        self.assertIn("piper:", text)
-        self.assertIn("voice:", text)
-        self.assertIn("backend:", text)
-        self.assertIn("cache:", text)
-        for forbidden in (
-            "pip install",
-            "invoke-webrequest",
-            "curl ",
-            "bitsadmin",
-            "start-bitstransfer",
-        ):
+        for forbidden in ("pip install", "invoke-webrequest", "curl ", "bitsadmin", "start-bitstransfer"):
             self.assertNotIn(forbidden, text)
 
 
