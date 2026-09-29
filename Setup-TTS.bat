@@ -7,7 +7,10 @@ title Attendance - Setup Offline Vietnamese TTS
 set "VIENEU_VERSION=3.8.3"
 set "TTS_PYTHON=%~dp0.venv-tts\Scripts\python.exe"
 set "TTS_RUNTIME_ROOT=%~dp0tts\runtime\vieneu"
-set "HF_HOME=%~dp0tts\runtime\vieneu\hf"
+set "VIENEU_MODELS_ROOT=%TTS_RUNTIME_ROOT%\models"
+set "VIENEU_MODEL_ROOT=%VIENEU_MODELS_ROOT%\v3turbo"
+set "VIENEU_CODEC_DIR=%VIENEU_MODELS_ROOT%\codec"
+set "HF_HOME=%TTS_RUNTIME_ROOT%\hf"
 set "HF_HUB_CACHE=%HF_HOME%\hub"
 set "SETUP_MANIFEST=%TTS_RUNTIME_ROOT%\setup.json"
 set "ONLINE_SMOKE_WAV=%TEMP%\attendance-vieneu-online-%RANDOM%-%RANDOM%.wav"
@@ -15,6 +18,7 @@ set "OFFLINE_SMOKE_WAV=%TEMP%\attendance-vieneu-offline-%RANDOM%-%RANDOM%.wav"
 set "SMOKE_WAV_PATH="
 
 if not exist "%TTS_RUNTIME_ROOT%" mkdir "%TTS_RUNTIME_ROOT%"
+if not exist "%VIENEU_MODELS_ROOT%" mkdir "%VIENEU_MODELS_ROOT%"
 if not exist "%HF_HUB_CACHE%" mkdir "%HF_HUB_CACHE%"
 if exist "%SETUP_MANIFEST%" del /q "%SETUP_MANIFEST%" >nul 2>&1
 
@@ -33,11 +37,11 @@ if not defined PYTHON_CMD (
 )
 
 if not exist "%TTS_PYTHON%" (
-    echo [1/6] Tao moi truong TTS rieng .venv-tts ...
+    echo [1/7] Tao moi truong TTS rieng .venv-tts ...
     %PYTHON_CMD% -m venv ".venv-tts"
     if errorlevel 1 goto :fail
 ) else (
-    echo [1/6] .venv-tts da ton tai.
+    echo [1/7] .venv-tts da ton tai.
 )
 
 if not exist "%TTS_PYTHON%" (
@@ -45,11 +49,11 @@ if not exist "%TTS_PYTHON%" (
     goto :fail
 )
 
-echo [2/6] Cai VieNeu-TTS %VIENEU_VERSION% ...
+echo [2/7] Cai VieNeu-TTS %VIENEU_VERSION% ...
 "%TTS_PYTHON%" -m pip install "vieneu==%VIENEU_VERSION%"
 if errorlevel 1 goto :fail
 
- echo [3/6] Kiem tra package version ...
+echo [3/7] Kiem tra package version ...
 "%TTS_PYTHON%" -c "import importlib.metadata,sys; v=importlib.metadata.version('vieneu'); print('VieNeu package:',v); sys.exit(0 if v=='%VIENEU_VERSION%' else 1)"
 if errorlevel 1 (
     echo [LOI] VieNeu package khong dung version %VIENEU_VERSION%.
@@ -57,8 +61,12 @@ if errorlevel 1 (
 )
 
 set "HF_HUB_OFFLINE="
+echo [4/7] Materialize ONNX model va codec vao thu muc local ...
+"%TTS_PYTHON%" tools\materialize_vieneu_models.py --model-root "%VIENEU_MODEL_ROOT%" --codec-dir "%VIENEU_CODEC_DIR%"
+if errorlevel 1 goto :fail
+
 if exist "%ONLINE_SMOKE_WAV%" del /q "%ONLINE_SMOKE_WAV%" >nul 2>&1
-echo [4/6] Online smoke test va tai model/codec can thiet ...
+echo [5/7] Online smoke test tren local materialized assets ...
 "%TTS_PYTHON%" tts_worker.py --smoke-test "%ONLINE_SMOKE_WAV%"
 if errorlevel 1 goto :fail
 set "SMOKE_WAV_PATH=%ONLINE_SMOKE_WAV%"
@@ -71,7 +79,7 @@ del /q "%ONLINE_SMOKE_WAV%" >nul 2>&1
 
 set "HF_HUB_OFFLINE=1"
 if exist "%OFFLINE_SMOKE_WAV%" del /q "%OFFLINE_SMOKE_WAV%" >nul 2>&1
-echo [5/6] Fresh-process offline smoke test ...
+echo [6/7] Fresh-process offline smoke test ...
 "%TTS_PYTHON%" tts_worker.py --smoke-test "%OFFLINE_SMOKE_WAV%"
 if errorlevel 1 goto :fail
 set "SMOKE_WAV_PATH=%OFFLINE_SMOKE_WAV%"
@@ -82,8 +90,8 @@ if errorlevel 1 (
 )
 del /q "%OFFLINE_SMOKE_WAV%" >nul 2>&1
 
-echo [6/6] Ghi manifest chi sau khi offline smoke da thanh cong ...
-"%TTS_PYTHON%" tools\write_vieneu_manifest.py --hf-cache "%HF_HUB_CACHE%" --output "%SETUP_MANIFEST%"
+echo [7/7] Ghi manifest chi sau khi offline smoke da thanh cong ...
+"%TTS_PYTHON%" tools\write_vieneu_manifest.py --asset-root "%VIENEU_MODELS_ROOT%" --output "%SETUP_MANIFEST%"
 if errorlevel 1 goto :fail
 if not exist "%SETUP_MANIFEST%" goto :fail
 
@@ -92,6 +100,7 @@ echo [OK] Offline Vietnamese TTS da san sang.
 echo Engine: VieNeu-TTS v3 Turbo %VIENEU_VERSION%
 echo Voice: Thuy Dung ^(Southern female preset^)
 echo Backend: ONNX CPU fp32
+echo Model/codec: local materialized files; khong load truc tiep tu HF blob cache.
 echo Runtime se dung HF_HUB_OFFLINE=1 sau buoc setup nay.
 echo.
 endlocal
