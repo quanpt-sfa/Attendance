@@ -12,14 +12,17 @@ class SetupScriptContractTests(unittest.TestCase):
         text = (ROOT / "Setup-TTS.bat").read_text(encoding="utf-8").lower()
         self.assertIn('set "vieneu_version=3.8.3"', text)
         self.assertIn('vieneu==%vieneu_version%', text)
+        self.assertIn('materialize_vieneu_models.py', text)
         self.assertIn('set "hf_home=%~dp0tts\\runtime\\vieneu\\hf"', text)
         self.assertIn('set "hf_hub_cache=%hf_home%\\hub"', text)
         self.assertIn('hf_hub_offline=1', text)
         self.assertGreaterEqual(text.count('tts_worker.py --smoke-test'), 2)
+        materialize = text.index('materialize_vieneu_models.py')
         online = text.index('tts_worker.py --smoke-test')
         offline_flag = text.index('hf_hub_offline=1')
         offline = text.index('tts_worker.py --smoke-test', online + 1)
         manifest = text.index('write_vieneu_manifest.py')
+        self.assertLess(materialize, online)
         self.assertLess(online, offline_flag)
         self.assertLess(offline_flag, offline)
         self.assertLess(offline, manifest)
@@ -35,6 +38,42 @@ class SetupScriptContractTests(unittest.TestCase):
             self.assertIn(label, text)
         for forbidden in ('pip install', 'invoke-webrequest', 'curl ', 'bitsadmin', 'start-bitstransfer', 'git clone', 'npm '):
             self.assertNotIn(forbidden, text)
+
+
+class MaterializedAssetTests(unittest.TestCase):
+    def test_materializer_downloads_onnx_and_external_data_into_real_local_directories(self):
+        from tools import materialize_vieneu_models as module
+        calls = []
+
+        def fake_download(repo_id, filename, **kwargs):
+            calls.append((repo_id, filename, kwargs))
+            local_dir = Path(kwargs["local_dir"])
+            subfolder = kwargs.get("subfolder")
+            target = local_dir / subfolder / filename if subfolder else local_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"x")
+            return str(target)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            model_root = root / "v3turbo"
+            codec_dir = root / "codec"
+            module.materialize(model_root=model_root, codec_dir=codec_dir, download=fake_download)
+
+            for name in module.GRAPH_FILES:
+                self.assertTrue((model_root / "onnx_update" / name).is_file(), name)
+            for name in module.CODEC_FILES:
+                self.assertTrue((codec_dir / name).is_file(), name)
+
+        self.assertEqual(len(calls), len(module.GRAPH_FILES) + len(module.CODEC_FILES))
+        graph_calls = calls[: len(module.GRAPH_FILES)]
+        codec_calls = calls[len(module.GRAPH_FILES) :]
+        self.assertTrue(all(call[0] == module.MODEL_REPO_ID for call in graph_calls))
+        self.assertTrue(all(call[2].get("subfolder") == "onnx_update" for call in graph_calls))
+        self.assertTrue(all(Path(call[2]["local_dir"]) == model_root for call in graph_calls))
+        self.assertTrue(all(call[0] == module.CODEC_REPO_ID for call in codec_calls))
+        self.assertTrue(all(call[2].get("subfolder") is None for call in codec_calls))
+        self.assertTrue(all(Path(call[2]["local_dir"]) == codec_dir for call in codec_calls))
 
 
 class ManifestWriterTests(unittest.TestCase):
