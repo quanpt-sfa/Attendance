@@ -14,9 +14,9 @@ ENGINE_ID = "vieneu-v3-turbo"
 BACKEND_ID = "onnx-fp32"
 
 
-def build_manifest(hf_cache: Path) -> dict:
+def build_manifest(asset_root: Path) -> dict:
     """Build a diagnostic manifest after an offline smoke test has succeeded."""
-    hf_cache = Path(hf_cache)
+    asset_root = Path(asset_root)
     installed = importlib.metadata.version("vieneu")
     if installed != EXPECTED_VERSION:
         raise RuntimeError(
@@ -24,17 +24,19 @@ def build_manifest(hf_cache: Path) -> dict:
         )
 
     artifacts = []
-    if hf_cache.is_dir():
-        for path in sorted((p for p in hf_cache.rglob("*") if p.is_file()), key=lambda p: p.as_posix()):
+    if asset_root.is_dir():
+        for path in sorted((p for p in asset_root.rglob("*") if p.is_file()), key=lambda p: p.as_posix()):
+            if ".cache" in path.parts:
+                continue
             try:
                 size = path.stat().st_size
             except OSError:
                 continue
             artifacts.append(
-                {"path": path.relative_to(hf_cache).as_posix(), "size": int(size)}
+                {"path": path.relative_to(asset_root).as_posix(), "size": int(size)}
             )
     if not artifacts:
-        raise RuntimeError("Hugging Face cache is empty after offline verification")
+        raise RuntimeError("VieNeu materialized asset directory is empty after offline verification")
 
     return {
         "voice": VOICE_ID,
@@ -47,11 +49,11 @@ def build_manifest(hf_cache: Path) -> dict:
     }
 
 
-def write_manifest(hf_cache: Path, output: Path) -> Path:
+def write_manifest(asset_root: Path, output: Path) -> Path:
     """Atomically publish the setup manifest."""
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    payload = build_manifest(Path(hf_cache))
+    payload = build_manifest(Path(asset_root))
     temp = output.with_name(f"{output.name}.{uuid.uuid4().hex}.tmp")
     try:
         temp.write_text(
@@ -69,11 +71,11 @@ def write_manifest(hf_cache: Path, output: Path) -> Path:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Write Attendance VieNeu offline setup manifest")
-    parser.add_argument("--hf-cache", required=True)
+    parser.add_argument("--asset-root", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args(argv)
     try:
-        output = write_manifest(Path(args.hf_cache), Path(args.output))
+        output = write_manifest(Path(args.asset_root), Path(args.output))
     except Exception as exc:
         print(f"Cannot write VieNeu setup manifest: {exc}")
         return 1
