@@ -198,15 +198,18 @@ class TTSWorkerLaunchTests(unittest.TestCase):
             def poll(self): return 0
         fake_process = FakeProcess()
         existing_script = Path(__file__).resolve()
+        expected_node = Path(r"C:\Node Path\node.exe")
+        expected_nghi_root = Path(r"D:\NGHI Path\nghitts")
+        expected_adapter = Path(r"D:\App Path\tts\nghi_frontend.mjs")
         with (
             mock.patch.object(tts_service, "_runtime_state", return_value=(True, True)),
             mock.patch.object(tts_service, "WORKER_SCRIPT", existing_script),
             mock.patch.object(tts_service, "_worker_python", return_value=Path(r"C:\Python Path\python.exe")),
             mock.patch.object(tts_service, "_voice_model", return_value=Path(r"D:\Voice Path\voice.onnx")),
             mock.patch.object(tts_service, "_voice_config", return_value=Path(r"D:\Voice Path\voice.onnx.json")),
-            mock.patch.object(tts_service, "NODE_EXE", Path(r"C:\Node Path\node.exe")),
-            mock.patch.object(tts_service, "NGHI_ROOT", Path(r"D:\NGHI Path\nghitts")),
-            mock.patch.object(tts_service, "NGHI_ADAPTER", Path(r"D:\App Path\tts\nghi_frontend.mjs")),
+            mock.patch.object(tts_service, "NODE_EXE", expected_node),
+            mock.patch.object(tts_service, "NGHI_ROOT", expected_nghi_root),
+            mock.patch.object(tts_service, "NGHI_ADAPTER", expected_adapter),
             mock.patch.object(tts_service.subprocess, "Popen", return_value=fake_process) as popen,
         ):
             tts_service._start_worker_locked()
@@ -214,11 +217,11 @@ class TTSWorkerLaunchTests(unittest.TestCase):
         env = popen.call_args.kwargs["env"]
         self.assertEqual(env["PYTHONIOENCODING"], "utf-8:strict")
         self.assertIn("--node", command)
-        self.assertIn(str(tts_service.NODE_EXE), command)
+        self.assertIn(str(expected_node), command)
         self.assertIn("--nghi-root", command)
-        self.assertIn(str(tts_service.NGHI_ROOT), command)
+        self.assertIn(str(expected_nghi_root), command)
         self.assertIn("--nghi-adapter", command)
-        self.assertIn(str(tts_service.NGHI_ADAPTER), command)
+        self.assertIn(str(expected_adapter), command)
         self.assertIn("--nghi-commit", command)
         self.assertIn(tts_service.NGHI_COMMIT, command)
         self.assertNotIn("--native-piper", command)
