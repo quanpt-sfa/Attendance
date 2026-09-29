@@ -4,3 +4,5 @@ Pre-flight: Task 2 produces ID-only WAV synthesis; Task 3 only changes runtime d
 Pre-flight: Tasks 4–6 consume the same runtime/protocol without changing it — consistent with spec.
 Ruling: GitHub Actions is the RED/GREEN executor because this harness cannot clone/run the repository locally; add contract commands to branch CI as tests are introduced. Production behavior remains unchanged by this ruling.
 Task 1: complete (RED run #91 failed with ERR_MODULE_NOT_FOUND for tts/nghi_frontend.mjs; GREEN run #92 passed Python + Node regression including test_nghi_frontend.mjs; production commit 97606eb).
+Task 2: Ruling: the legacy audit imported prepare_spoken_name, which Task 5 will replace; keep a temporary case-preserving whitespace helper so the full suite stays importable without reintroducing lowercase behavior into production.
+Task 2: complete (RED run #94 failed on missing NghiFrontendClient/NghiOnnxSynthesizer; first GREEN attempt #95 passed all new worker tests but exposed the legacy audit import; GREEN run #96 passed full Python + Node regression; production commits d73ce83, 6cf92c9).
