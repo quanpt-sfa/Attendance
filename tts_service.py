@@ -114,11 +114,25 @@ def get_cached_audio(text: str) -> Path | None:
     return path if _is_valid_wav(path) else None
 
 
+def _nghi_frontend_ready() -> bool:
+    """Return whether the pinned NGHI checkout and required npm asset are complete."""
+    if not NGHI_ROOT.is_dir() or not NGHI_ADAPTER.is_file():
+        return False
+    marker = NGHI_ROOT / ".attendance-nghi-commit"
+    phonemizer = NGHI_ROOT / "node_modules" / "phonemizer"
+    if not marker.is_file() or not phonemizer.is_dir():
+        return False
+    try:
+        return marker.read_text(encoding="utf-8").strip() == NGHI_COMMIT
+    except OSError:
+        return False
+
+
 def _runtime_components() -> dict:
     """Return local runtime presence without starting either worker."""
     python_runtime_present = _worker_python().is_file()
     node_runtime_present = NODE_EXE.is_file()
-    nghi_frontend_present = NGHI_ROOT.is_dir() and NGHI_ADAPTER.is_file()
+    nghi_frontend_present = _nghi_frontend_ready()
     model_present = _voice_model().is_file() and _voice_config().is_file()
     runtime_present = bool(
         python_runtime_present and node_runtime_present and nghi_frontend_present
