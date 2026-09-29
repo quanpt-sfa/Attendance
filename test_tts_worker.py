@@ -1,223 +1,142 @@
+import contextlib
 import io
 import json
+import sys
 import tempfile
+import types
 import unittest
+import wave
 from pathlib import Path
 
 import tts_worker
 
 
-ROOT = Path(__file__).resolve().parent
+class FakeEngine:
+    def __init__(self, voices=None):
+        self.voices = voices or [("⭐ Thùy Dung — Southern female", "Thùy Dung")]
+        self.infer_calls = []
+
+    def list_preset_voices(self):
+        print("sdk-list-chatter")
+        return self.voices
+
+    def infer(self, text, voice):
+        print("sdk-infer-chatter")
+        self.infer_calls.append((text, voice))
+        return [0.0, 0.25, -0.25, 0.0]
 
 
-class TTSWorkerProtocolTests(unittest.TestCase):
-    def test_valid_synthesis_request_preserves_id_and_calls_synthesizer(self):
+class VieneuSynthesizerTests(unittest.TestCase):
+    def _factory(self, engine, calls):
+        def factory(**kwargs):
+            print("sdk-init-chatter")
+            calls.append(kwargs)
+            return engine
+        return factory
+
+    def _fake_soundfile(self, calls):
+        module = types.SimpleNamespace()
+        def write(path, audio, samplerate, subtype):
+            calls.append((str(path), list(audio), samplerate, subtype))
+            with wave.open(str(path), "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(samplerate)
+                wf.writeframes(b"\x00\x00" * len(audio))
+        module.write = write
+        return module
+
+    def test_constructs_engine_once_and_reuses_exact_southern_voice(self):
         calls = []
+        engine = FakeEngine()
+        synth = tts_worker.VieneuSynthesizer(factory=self._factory(engine, calls), stderr=io.StringIO())
+        with tempfile.TemporaryDirectory() as tmp, unittest.mock.patch.dict(sys.modules, {"soundfile": self._fake_soundfile([])}):
+            synth("Huỳnh Quốc Phước.", Path(tmp) / "a.wav")
+            synth("Mời sinh viên tiếp theo.", Path(tmp) / "b.wav")
+        self.assertEqual(calls, [{"mode": "v3turbo", "backend": "onnx", "precision": "fp32"}])
+        self.assertEqual(engine.infer_calls, [
+            ("Huỳnh Quốc Phước.", "Thùy Dung"),
+            ("Mời sinh viên tiếp theo.", "Thùy Dung"),
+        ])
+        self.assertEqual(tts_worker.DEFAULT_VOICE, "Thùy Dung")
 
-        def synthesize(text, output):
-            calls.append((text, Path(output)))
+    def test_requires_exact_voice_id_not_decorative_label(self):
+        engine = FakeEngine(voices=[("⭐ Thùy Dung — Southern female", "voice-17")])
+        synth = tts_worker.VieneuSynthesizer(factory=lambda **_kwargs: engine, stderr=io.StringIO())
+        with self.assertRaisesRegex(RuntimeError, "Thùy Dung"):
+            synth.initialize()
 
-        request = {
-            "id": "req-1",
-            "action": "synthesize",
-            "text": "Nguyễn Văn An",
-            "output": "out.wav",
-        }
-        response = tts_worker.handle_request(request, synthesize)
+    def test_preserves_text_writes_48khz_pcm16_and_redirects_sdk_stdout(self):
+        factory_calls = []
+        sf_calls = []
+        engine = FakeEngine()
+        sdk_stderr = io.StringIO()
+        protocol_stdout = io.StringIO()
+        synth = tts_worker.VieneuSynthesizer(factory=self._factory(engine, factory_calls), stderr=sdk_stderr)
+        text = "HUỲNH Quốc Phước đã điểm danh thành công. Mời sinh viên tiếp theo."
+        with tempfile.TemporaryDirectory() as tmp, unittest.mock.patch.dict(sys.modules, {"soundfile": self._fake_soundfile(sf_calls)}), contextlib.redirect_stdout(protocol_stdout):
+            output = Path(tmp) / "out.wav"
+            synth(text, output)
+            with wave.open(str(output), "rb") as wf:
+                self.assertEqual(wf.getnchannels(), 1)
+                self.assertEqual(wf.getframerate(), 48000)
+                self.assertEqual(wf.getsampwidth(), 2)
+        self.assertEqual(engine.infer_calls, [(text, "Thùy Dung")])
+        self.assertEqual(sf_calls[0][2:], (48000, "PCM_16"))
+        self.assertEqual(protocol_stdout.getvalue(), "")
+        self.assertIn("sdk-init-chatter", sdk_stderr.getvalue())
+        self.assertIn("sdk-list-chatter", sdk_stderr.getvalue())
+        self.assertIn("sdk-infer-chatter", sdk_stderr.getvalue())
 
-        self.assertEqual(response, {"id": "req-1", "ok": True})
-        self.assertEqual(calls, [("Nguyễn Văn An", Path("out.wav"))])
-
-    def test_invalid_action_returns_protocol_error_without_synthesis(self):
-        calls = []
-        response = tts_worker.handle_request(
-            {"id": "req-2", "action": "delete", "text": "A", "output": "x.wav"},
-            lambda *args: calls.append(args),
-        )
-        self.assertEqual(response["id"], "req-2")
-        self.assertFalse(response["ok"])
-        self.assertIn("action", response["error"].lower())
-        self.assertEqual(calls, [])
-
-    def test_synthesis_exception_is_returned_as_protocol_error(self):
-        def fail(_text, _output):
-            raise RuntimeError("model failure")
-
-        response = tts_worker.handle_request(
-            {"id": "req-3", "action": "synthesize", "text": "A", "output": "x.wav"},
-            fail,
-        )
-        self.assertEqual(response["id"], "req-3")
-        self.assertFalse(response["ok"])
-        self.assertIn("model failure", response["error"])
-
-    def test_serve_writes_only_json_protocol_to_stdout(self):
-        request = json.dumps(
-            {"id": "req-4", "action": "synthesize", "text": "A", "output": "x.wav"}
-        )
-        stdin = io.StringIO(request + "\nnot-json\n")
-        stdout = io.StringIO()
-        stderr = io.StringIO()
-
-        tts_worker.serve_streams(
-            stdin,
-            stdout,
-            stderr,
-            lambda _text, _output: None,
-        )
-
-        lines = [json.loads(line) for line in stdout.getvalue().splitlines()]
-        self.assertEqual(lines[0], {"id": "req-4", "ok": True})
-        self.assertFalse(lines[1]["ok"])
-        self.assertNotIn("not-json", stdout.getvalue())
-        self.assertIn("not-json", stderr.getvalue())
-
-    def test_spoken_name_lowercases_uppercase_tokens_before_espeak(self):
-        self.assertEqual(
-            tts_worker.prepare_spoken_name("Nguyễn Thị THU"),
-            "nguyễn thị thu",
-        )
-        self.assertEqual(
-            tts_worker.prepare_spoken_name("  HUỲNH   QUỐC PHƯỚC  "),
-            "huỳnh quốc phước",
-        )
-
-    def test_smoke_sample_exercises_vietnamese_names_with_diacritics_and_uppercase(self):
-        sample = tts_worker.DEFAULT_SMOKE_TEXT
-        for fragment in (
-            "Nguyễn Thị THÚY QUỲNH",
-            "HUỲNH QUỐC PHƯỚC",
-            "VÕ TRỌNG NGHĨA",
-            "ĐẶNG HOÀNG YẾN",
-        ):
-            self.assertIn(fragment, sample)
-
-
-class PiperSynthesizerTests(unittest.TestCase):
-    def test_real_synthesis_error_is_not_masked_by_wave_close(self):
-        class BrokenVoice:
-            def synthesize_wav(self, _text, _wav_file):
-                raise RuntimeError("phonemizer exploded")
-
-        synthesizer = tts_worker.PiperSynthesizer(Path("voice.onnx"), Path("voice.onnx.json"))
-        synthesizer._voice = BrokenVoice()
-
+    def test_partial_output_is_removed_after_save_failure(self):
+        engine = FakeEngine()
+        def broken_writer(path, _audio, _samplerate, _subtype):
+            Path(path).write_bytes(b"partial")
+            raise RuntimeError("disk failed")
+        synth = tts_worker.VieneuSynthesizer(factory=lambda **_kwargs: engine, writer=broken_writer, stderr=io.StringIO())
         with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / "broken.wav"
-            with self.assertRaisesRegex(RuntimeError, "phonemizer exploded"):
-                synthesizer("HUỲNH QUỐC PHƯỚC", output)
+            output = Path(tmp) / "partial.wav"
+            with self.assertRaisesRegex(RuntimeError, "disk failed"):
+                synth("Xin chào.", output)
             self.assertFalse(output.exists())
 
 
-class NativePiperSynthesizerTests(unittest.TestCase):
-    def test_native_process_uses_utf8_json_input_reuses_model_and_pins_sentence_pause(self):
-        calls = {"starts": 0, "writes": []}
+class WorkerReadinessTests(unittest.TestCase):
+    def test_serve_ready_streams_emits_one_ready_event_then_request_responses(self):
+        class Synth:
+            def __init__(self): self.initialized = 0
+            def initialize(self): self.initialized += 1
+            def __call__(self, _text, output): Path(output).write_bytes(b"RIFF\x00\x00\x00\x00WAVE")
+        synth = Synth()
+        stdin = io.StringIO(json.dumps({"id":"r1","action":"synthesize","text":"Xin chào","output":"out.wav"}) + "\n")
+        stdout, stderr = io.StringIO(), io.StringIO()
+        tts_worker.serve_ready_streams(stdin, stdout, stderr, synth)
+        lines = [json.loads(line) for line in stdout.getvalue().splitlines()]
+        self.assertEqual(synth.initialized, 1)
+        self.assertEqual(lines[0], {"type":"ready","ok":True,"voice":"Thùy Dung","engine":"vieneu-v3-turbo","backend":"onnx-fp32"})
+        self.assertEqual(lines[1], {"id":"r1","ok":True})
+        self.assertEqual(tts_worker.READY_EVENT_TYPE, "ready")
 
-        with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / "student.wav"
-
-            class FakeStdin:
-                def write(self, value):
-                    calls["writes"].append(value)
-                    return len(value)
-
-                def flush(self):
-                    calls["flushed"] = True
-
-            class FakeStdout:
-                def readline(self):
-                    output.write_bytes(b"RIFF\x00\x00\x00\x00WAVEdata")
-                    return str(output) + "\n"
-
-            class FakeProcess:
-                def __init__(self):
-                    self.stdin = FakeStdin()
-                    self.stdout = FakeStdout()
-
-                def poll(self):
-                    return None
-
-                def terminate(self):
-                    pass
-
-                def wait(self, timeout=None):
-                    return 0
-
-            def process_factory(command, **kwargs):
-                calls["starts"] += 1
-                calls["command"] = command
-                calls["kwargs"] = kwargs
-                return FakeProcess()
-
-            synthesizer = tts_worker.NativePiperSynthesizer(
-                Path("piper.exe"),
-                Path("voice.onnx"),
-                Path("voice.onnx.json"),
-                process_factory=process_factory,
-            )
-            synthesizer("HUỲNH QUỐC PHƯỚC", output)
-            synthesizer("Nguyễn Thị THU", output)
-
-            self.assertEqual(calls["starts"], 1)
-            self.assertIn("--json-input", calls["command"])
-            self.assertIn("--quiet", calls["command"])
-            self.assertIn("--sentence-silence", calls["command"])
-            silence_index = calls["command"].index("--sentence-silence")
-            self.assertEqual(
-                calls["command"][silence_index + 1],
-                str(tts_worker.DEFAULT_SENTENCE_SILENCE_SECONDS),
-            )
-            self.assertEqual(tts_worker.DEFAULT_SENTENCE_SILENCE_SECONDS, 0.45)
-            first = json.loads(calls["writes"][0])
-            second = json.loads(calls["writes"][1])
-            self.assertEqual(first["text"], "huỳnh quốc phước")
-            self.assertEqual(second["text"], "nguyễn thị thu")
-            self.assertEqual(first["output_file"], str(output))
-            self.assertTrue(calls.get("flushed"))
+    def test_readiness_failure_emits_failure_and_does_not_consume_requests(self):
+        class BrokenSynth:
+            def initialize(self): raise RuntimeError("model unavailable")
+        stdin = io.StringIO("should-not-be-read\n")
+        stdout, stderr = io.StringIO(), io.StringIO()
+        ok = tts_worker.serve_ready_streams(stdin, stdout, stderr, BrokenSynth())
+        self.assertFalse(ok)
+        lines = [json.loads(line) for line in stdout.getvalue().splitlines()]
+        self.assertEqual(lines, [{"type":"ready","ok":False,"error":"model unavailable"}])
 
 
-class TTSWindowsScriptContractTests(unittest.TestCase):
-    def test_setup_script_pins_native_windows_runtime_voice_and_smoke_test(self):
-        text = (ROOT / "Setup-TTS.bat").read_text(encoding="utf-8").lower()
-        self.assertIn(".venv-tts\\scripts\\python.exe", text)
-        self.assertIn("piper_windows_amd64.zip", text)
-        self.assertIn("2023.11.14-2", text)
-        self.assertIn("expand-archive", text)
-        self.assertIn("tts\\runtime\\piper\\piper.exe", text)
-        self.assertNotIn('pip install "piper-tts==1.8.0"', text)
-        self.assertIn('set "voice_id=calmwoman3688"', text)
-        self.assertIn('set "model_path=%voice_dir%\\%voice_id%.onnx"', text)
-        self.assertIn('set "config_path=%voice_dir%\\%voice_id%.onnx.json"', text)
-        self.assertIn("huggingface.co/sannht/vi_voice/resolve/%voice_revision%/tts-model", text)
-        self.assertIn("voice_revision=62e57b18157ed213b3863a7a8a35b14d3404554b", text)
-        self.assertIn(
-            "8db60d8afc50dc0921fd3a1b0b942813f44cc3744dbe2534617f2b8726096e7e",
-            text,
+class ProtocolCompatibilityTests(unittest.TestCase):
+    def test_request_protocol_remains_compatible(self):
+        seen = []
+        response = tts_worker.handle_request(
+            {"id":"req-1","action":"synthesize","text":"Nguyễn Văn An","output":"out.wav"},
+            lambda text, output: seen.append((text, Path(output))),
         )
-        self.assertIn(
-            "971f57f8d504223fee5b40d664f503cf769baf7db21f7d2ae0554a75d07de2f8",
-            text,
-        )
-        self.assertGreaterEqual(text.count("get-filehash -algorithm sha256"), 2)
-        self.assertIn("--smoke-test", text)
-        self.assertIn("--native-piper", text)
-        self.assertNotIn("vi_vn-vais1000-medium", text)
-
-    def test_check_script_is_read_only(self):
-        text = (ROOT / "Check-TTS.bat").read_text(encoding="utf-8").lower()
-        self.assertIn("tts_service.get_status", text)
-        self.assertIn("piper:", text)
-        self.assertIn("voice:", text)
-        self.assertIn("backend:", text)
-        self.assertIn("cache:", text)
-        for forbidden in (
-            "pip install",
-            "invoke-webrequest",
-            "curl ",
-            "bitsadmin",
-            "start-bitstransfer",
-        ):
-            self.assertNotIn(forbidden, text)
+        self.assertEqual(response, {"id":"req-1","ok":True})
+        self.assertEqual(seen, [("Nguyễn Văn An", Path("out.wav"))])
 
 
 if __name__ == "__main__":
