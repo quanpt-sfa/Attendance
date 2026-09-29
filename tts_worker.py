@@ -11,9 +11,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import queue
 import struct
 import subprocess
 import sys
+import threading
 import uuid
 import wave
 from pathlib import Path
@@ -24,6 +26,7 @@ DEFAULT_SMOKE_TEXT = (
     "Mời sinh viên tiếp theo."
 )
 NGHI_COMMIT_DEFAULT = "46d160da32041f7e176607203b958069265df7da"
+FRONTEND_TIMEOUT_SECONDS = 20.0
 
 
 def handle_request(request: dict, synthesize: Callable[[str, Path], None]) -> dict:
@@ -185,6 +188,31 @@ class NghiFrontendClient:
             "chunks": validated,
         }
 
+    @staticmethod
+    def _readline_with_timeout(stream, timeout_seconds: float) -> str:
+        """Read one protocol line without allowing a live sidecar to hang forever."""
+        result_queue = queue.Queue(maxsize=1)
+
+        def reader() -> None:
+            try:
+                result_queue.put((True, stream.readline()))
+            except BaseException as exc:  # propagate pipe/decoder failures to caller
+                result_queue.put((False, exc))
+
+        thread = threading.Thread(
+            target=reader,
+            name="attendance-nghi-frontend-reader",
+            daemon=True,
+        )
+        thread.start()
+        try:
+            ok, value = result_queue.get(timeout=timeout_seconds)
+        except queue.Empty as exc:
+            raise RuntimeError("NGHI frontend response timed out") from exc
+        if not ok:
+            raise RuntimeError(f"NGHI frontend response read failed: {value}") from value
+        return value
+
     def _request_once(self, text: str) -> dict:
         process = self._start_process()
         if process.stdin is None or process.stdout is None:
@@ -196,7 +224,7 @@ class NghiFrontendClient:
             process.stdin.flush()
         except (BrokenPipeError, OSError, UnicodeError) as exc:
             raise RuntimeError(f"NGHI frontend input failed: {exc}") from exc
-        line = process.stdout.readline()
+        line = self._readline_with_timeout(process.stdout, FRONTEND_TIMEOUT_SECONDS)
         if not line:
             raise RuntimeError("NGHI frontend sidecar exited before response")
         try:
