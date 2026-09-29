@@ -211,15 +211,16 @@ class TTSWorkerLaunchTests(unittest.TestCase):
     def test_worker_launch_uses_offline_environment_simple_command_and_ready_handshake(self):
         fake = FakeProcess()
         existing = Path(__file__).resolve()
-        with tempfile.TemporaryDirectory() as tmp, (
-            mock.patch.object(tts_service, "_runtime_components", return_value=self._runtime_ok()),
-            mock.patch.object(tts_service, "WORKER_SCRIPT", existing),
-            mock.patch.object(tts_service, "_worker_python", return_value=Path("python")),
-            mock.patch.object(tts_service, "HF_HOME", Path(tmp) / "hf"),
-            mock.patch.object(tts_service, "HF_HUB_CACHE", Path(tmp) / "hf" / "hub"),
-            mock.patch.object(tts_service.subprocess, "Popen", return_value=fake) as popen,
-        ):
-            result = tts_service._start_worker_locked()
+        with tempfile.TemporaryDirectory() as tmp:
+            with (
+                mock.patch.object(tts_service, "_runtime_components", return_value=self._runtime_ok()),
+                mock.patch.object(tts_service, "WORKER_SCRIPT", existing),
+                mock.patch.object(tts_service, "_worker_python", return_value=Path("python")),
+                mock.patch.object(tts_service, "HF_HOME", Path(tmp) / "hf"),
+                mock.patch.object(tts_service, "HF_HUB_CACHE", Path(tmp) / "hf" / "hub"),
+                mock.patch.object(tts_service.subprocess, "Popen", return_value=fake) as popen,
+            ):
+                result = tts_service._start_worker_locked()
         self.assertIs(result, fake)
         self.assertEqual(popen.call_args.args[0], ["python", str(existing), "--serve"])
         env = popen.call_args.kwargs["env"]
