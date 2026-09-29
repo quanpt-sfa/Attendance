@@ -39,7 +39,7 @@ class TTSServicePureTests(unittest.TestCase):
         self.assertEqual(tts_service.VOICE_REVISION, "sannht-vi_voice-62e57b18157ed213b3863a7a8a35b14d3404554b")
 
     def test_cache_format_is_bumped_for_nghi_frontend(self):
-        self.assertEqual(tts_service.CACHE_FORMAT_VERSION, 6)
+        self.assertEqual(tts_service.CACHE_FORMAT_VERSION, 7)
 
 
 class TTSServiceCacheTests(unittest.TestCase):
@@ -166,8 +166,8 @@ class TTSServiceStatusTests(unittest.TestCase):
             python_path.write_text("", encoding="utf-8")
             node = root / "node.exe"; node.write_text("", encoding="utf-8")
             nghi = root / "nghitts"; nghi.mkdir()
-            (nghi / "node_modules" / "phonemizer").mkdir(parents=True)
             (nghi / ".attendance-nghi-commit").write_text(tts_service.NGHI_COMMIT + "\n", encoding="utf-8")
+            (nghi / "node_modules" / "phonemizer").mkdir(parents=True)
             adapter = root / "nghi_frontend.mjs"; adapter.write_text("", encoding="utf-8")
             voices = root / "voices"; voices.mkdir()
             (voices / tts_service.VOICE_MODEL_NAME).write_bytes(b"model")
