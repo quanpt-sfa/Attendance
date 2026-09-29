@@ -4,26 +4,23 @@ chcp 65001 >nul
 cd /d "%~dp0"
 title Attendance - Check Offline TTS
 
-set "PYTHON_CMD="
-for %%P in (py python python3) do (
-    if not defined PYTHON_CMD (
-        %%P --version >nul 2>&1 && set "PYTHON_CMD=%%P"
-    )
-)
+set "TTS_PYTHON=%~dp0.venv-tts\Scripts\python.exe"
 
-if not defined PYTHON_CMD (
-    echo [LOI] Khong tim thay Python trong PATH.
+if not exist "%TTS_PYTHON%" (
+    echo [NOT READY] Khong tim thay .venv-tts\Scripts\python.exe
+    echo Chay Setup-TTS.bat khi co Internet.
+    endlocal
     exit /b 1
 )
 
-%PYTHON_CMD% -c "import tts_service; s=tts_service.get_status(); print('Piper: ' + ('READY' if s['available'] else 'NOT READY')); print('Voice: ' + s['voice']); print('Backend: ' + s['backend']); print('Runtime: ' + ('OK' if s['runtime_present'] else 'MISSING')); print('Model: ' + ('OK' if s['model_present'] else 'MISSING')); print('Cache: ' + str(s['cache_files']) + ' WAV file(s)')"
+"%TTS_PYTHON%" -c "import sys,tts_service; s=tts_service.get_status(); print('Voice: ' + s['voice']); print('Engine: ' + s['engine']); print('Version: ' + s['engine_version']); print('Backend: ' + s['backend']); print('Runtime: ' + ('READY' if s['runtime_present'] else 'MISSING')); print('Offline assets: ' + ('READY' if s['offline_assets_present'] else 'MISSING')); print('Cache: ' + str(s['cache_files']) + ' WAV file(s)'); sys.exit(0 if s['available'] else 1)"
 set "RC=%ERRORLEVEL%"
 
 echo.
 if "%RC%"=="0" (
-    echo De cai dat/kiem tra lai runtime, chay Setup-TTS.bat.
+    echo [OK] VieNeu offline TTS san sang.
 ) else (
-    echo [LOI] Khong doc duoc trang thai TTS.
+    echo [NOT READY] Chay Setup-TTS.bat khi co Internet.
 )
 
 endlocal & exit /b %RC%
