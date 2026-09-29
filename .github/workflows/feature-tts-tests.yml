@@ -36,5 +36,6 @@ jobs:
           node --check random-picker-attendance.js
           node --check random-picker-speech.js
           node --check tools/nghi_phoneme_audit.mjs
+          node test_nghi_frontend.mjs
           node test_random_picker_attendance.js
           node test_random_picker_speech.js
