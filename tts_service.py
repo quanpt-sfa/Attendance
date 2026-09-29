@@ -1,11 +1,8 @@
 """Offline Vietnamese TTS cache/service boundary for Attendance.
 
-The main Attendance process never imports Piper. Synthesis is delegated to
-``tts_worker.py`` running under the isolated ``.venv-tts`` interpreter. On
-Windows, that worker uses the bundled native Piper executable so Vietnamese
-phonemization does not depend on Python ``espeakbridge``.
+The main Attendance process does not import VieNeu. Synthesis runs in the
+isolated ``.venv-tts`` worker after one-time offline asset setup.
 """
-
 from __future__ import annotations
 
 import atexit
@@ -20,21 +17,24 @@ import unicodedata
 import uuid
 from pathlib import Path
 
+from tts_vieneu_manifest import load_manifest, manifest_is_ready
+
 PROJECT_DIR = Path(__file__).resolve().parent
 TTS_VENV = PROJECT_DIR / ".venv-tts"
-VOICE_DIR = PROJECT_DIR / "tts" / "voices"
-TTS_RUNTIME_DIR = PROJECT_DIR / "tts" / "runtime"
-NATIVE_PIPER = TTS_RUNTIME_DIR / "piper" / "piper.exe"
+TTS_RUNTIME_ROOT = PROJECT_DIR / "tts" / "runtime" / "vieneu"
+HF_HOME = TTS_RUNTIME_ROOT / "hf"
+HF_HUB_CACHE = HF_HOME / "hub"
+SETUP_MANIFEST = TTS_RUNTIME_ROOT / "setup.json"
 CACHE_DIR = PROJECT_DIR / "tts_cache"
 WORKER_SCRIPT = PROJECT_DIR / "tts_worker.py"
 
-VOICE_ID = "calmwoman3688"
-VOICE_REVISION = "sannht-vi_voice-62e57b18157ed213b3863a7a8a35b14d3404554b"
-CACHE_FORMAT_VERSION = 5
-WORKER_TIMEOUT_SECONDS = 20.0
-
-VOICE_MODEL_NAME = f"{VOICE_ID}.onnx"
-VOICE_CONFIG_NAME = f"{VOICE_ID}.onnx.json"
+VOICE_ID = "Thùy Dung"
+TTS_ENGINE = "vieneu-v3-turbo"
+TTS_ENGINE_VERSION = "3.8.3"
+TTS_BACKEND = "onnx-fp32"
+CACHE_FORMAT_VERSION = 6
+WORKER_STARTUP_TIMEOUT_SECONDS = 90.0
+WORKER_REQUEST_TIMEOUT_SECONDS = 45.0
 
 _tts_lock = threading.RLock()
 _worker_process = None
@@ -43,7 +43,7 @@ _worker_reader = None
 
 
 class TTSUnavailableError(RuntimeError):
-    """Local TTS runtime or voice is unavailable."""
+    """Local TTS runtime or offline assets are unavailable."""
 
 
 class TTSSynthesisError(RuntimeError):
@@ -51,19 +51,21 @@ class TTSSynthesisError(RuntimeError):
 
 
 def normalize_text(text: str) -> str:
-    """Normalize text for deterministic synthesis/cache identity."""
     value = unicodedata.normalize("NFC", str(text or ""))
     return re.sub(r"\s+", " ", value).strip()
 
 
 def cache_key(text: str) -> str:
-    """Return content-addressed cache key for normalized text and voice."""
     normalized = normalize_text(text)
-    payload = (
-        f"{CACHE_FORMAT_VERSION}\n"
-        f"{VOICE_ID}\n"
-        f"{VOICE_REVISION}\n"
-        f"{normalized}"
+    payload = "\n".join(
+        (
+            str(CACHE_FORMAT_VERSION),
+            VOICE_ID,
+            TTS_ENGINE,
+            TTS_ENGINE_VERSION,
+            TTS_BACKEND,
+            normalized,
+        )
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -77,14 +79,6 @@ def _worker_python() -> Path:
     if os.name == "nt":
         return TTS_VENV / "Scripts" / "python.exe"
     return TTS_VENV / "bin" / "python"
-
-
-def _voice_model() -> Path:
-    return VOICE_DIR / VOICE_MODEL_NAME
-
-
-def _voice_config() -> Path:
-    return VOICE_DIR / VOICE_CONFIG_NAME
 
 
 def _is_valid_wav(path: Path) -> bool:
@@ -106,27 +100,74 @@ def get_cached_audio(text: str) -> Path | None:
     return path if _is_valid_wav(path) else None
 
 
-def _runtime_state() -> tuple[bool, bool]:
-    runtime_present = _worker_python().is_file()
-    if os.name == "nt":
-        runtime_present = runtime_present and NATIVE_PIPER.is_file()
-    model_present = _voice_model().is_file() and _voice_config().is_file()
-    return runtime_present, model_present
+def _vieneu_distribution_present() -> bool:
+    names = {
+        f"vieneu-{TTS_ENGINE_VERSION}.dist-info",
+        f"vieneu_{TTS_ENGINE_VERSION}.dist-info",
+    }
+    windows_site = TTS_VENV / "Lib" / "site-packages"
+    for name in names:
+        if (windows_site / name).is_dir():
+            return True
+    lib_root = TTS_VENV / "lib"
+    if lib_root.is_dir():
+        for site in lib_root.glob("python*/site-packages"):
+            for name in names:
+                if (site / name).is_dir():
+                    return True
+    return False
+
+
+def _hf_cache_has_files() -> bool:
+    try:
+        return HF_HUB_CACHE.is_dir() and any(
+            path.is_file() for path in HF_HUB_CACHE.rglob("*")
+        )
+    except OSError:
+        return False
+
+
+def _runtime_components() -> dict:
+    python_runtime_present = _worker_python().is_file()
+    package_present = _vieneu_distribution_present()
+    manifest = load_manifest(SETUP_MANIFEST)
+    manifest_ready = manifest_is_ready(manifest)
+    hf_cache_present = _hf_cache_has_files()
+    offline_assets_present = bool(manifest_ready and hf_cache_present)
+    runtime_present = bool(
+        python_runtime_present and package_present and offline_assets_present
+    )
+    return {
+        "python_runtime_present": python_runtime_present,
+        "package_present": package_present,
+        "manifest_ready": manifest_ready,
+        "hf_cache_present": hf_cache_present,
+        "offline_assets_present": offline_assets_present,
+        "runtime_present": runtime_present,
+    }
 
 
 def get_status() -> dict:
-    runtime_present, model_present = _runtime_state()
+    components = _runtime_components()
     try:
-        cache_files = sum(1 for path in CACHE_DIR.rglob("*.wav") if _is_valid_wav(path))
+        cache_files = sum(
+            1 for path in CACHE_DIR.rglob("*.wav") if _is_valid_wav(path)
+        )
     except OSError:
         cache_files = 0
+    available = bool(components["runtime_present"] and WORKER_SCRIPT.is_file())
     return {
-        "available": bool(runtime_present and model_present and WORKER_SCRIPT.is_file()),
+        "available": available,
         "voice": VOICE_ID,
-        "voice_revision": VOICE_REVISION,
-        "backend": "native-piper" if os.name == "nt" else "python-piper",
-        "runtime_present": runtime_present,
-        "model_present": model_present,
+        "engine": TTS_ENGINE,
+        "engine_version": TTS_ENGINE_VERSION,
+        "backend": TTS_BACKEND,
+        "runtime_present": bool(components["runtime_present"]),
+        "python_runtime_present": bool(components["python_runtime_present"]),
+        "package_present": bool(components["package_present"]),
+        "offline_assets_present": bool(components["offline_assets_present"]),
+        "manifest_ready": bool(components["manifest_ready"]),
+        "hf_cache_present": bool(components["hf_cache_present"]),
         "cache_files": cache_files,
     }
 
@@ -150,7 +191,7 @@ def _stop_worker_locked() -> None:
     try:
         if process.stdin:
             process.stdin.close()
-    except OSError:
+    except (OSError, ValueError):
         pass
     try:
         if process.poll() is None:
@@ -169,32 +210,44 @@ def shutdown_worker() -> None:
         _stop_worker_locked()
 
 
+def _validate_ready_line(line: str | None) -> dict:
+    if line is None:
+        raise TTSUnavailableError("Offline TTS worker exited during startup")
+    try:
+        ready = json.loads(line)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise TTSUnavailableError(
+            "Offline TTS worker returned malformed readiness data"
+        ) from exc
+    if not isinstance(ready, dict) or ready.get("type") != "ready":
+        raise TTSUnavailableError("Offline TTS worker returned invalid readiness data")
+    if not ready.get("ok"):
+        raise TTSUnavailableError(
+            ready.get("error") or "Offline TTS worker failed to initialize"
+        )
+    expected = {"voice": VOICE_ID, "engine": TTS_ENGINE, "backend": TTS_BACKEND}
+    if any(ready.get(key) != value for key, value in expected.items()):
+        raise TTSUnavailableError("Offline TTS worker readiness identity mismatch")
+    return ready
+
+
 def _start_worker_locked():
     global _worker_process, _worker_queue, _worker_reader
-
     if _worker_process is not None and _worker_process.poll() is None:
         return _worker_process
 
-    runtime_present, model_present = _runtime_state()
-    if not runtime_present or not model_present or not WORKER_SCRIPT.is_file():
+    components = _runtime_components()
+    if not components.get("runtime_present") or not WORKER_SCRIPT.is_file():
         raise TTSUnavailableError(
             "Offline TTS is not installed. Run Setup-TTS.bat once while online."
         )
 
-    command = [
-        str(_worker_python()),
-        str(WORKER_SCRIPT),
-        "--serve",
-        "--model",
-        str(_voice_model()),
-        "--config",
-        str(_voice_config()),
-    ]
-    if os.name == "nt":
-        command.extend(["--native-piper", str(NATIVE_PIPER)])
-
+    command = [str(_worker_python()), str(WORKER_SCRIPT), "--serve"]
     worker_env = os.environ.copy()
     worker_env["PYTHONIOENCODING"] = "utf-8:strict"
+    worker_env["HF_HUB_OFFLINE"] = "1"
+    worker_env["HF_HOME"] = str(HF_HOME)
+    worker_env["HF_HUB_CACHE"] = str(HF_HUB_CACHE)
 
     result_queue = queue.Queue()
     try:
@@ -218,10 +271,22 @@ def _start_worker_locked():
         name="attendance-tts-worker-reader",
         daemon=True,
     )
-    reader.start()
     _worker_process = process
     _worker_queue = result_queue
     _worker_reader = reader
+    reader.start()
+
+    try:
+        line = result_queue.get(timeout=WORKER_STARTUP_TIMEOUT_SECONDS)
+    except queue.Empty as exc:
+        _stop_worker_locked()
+        raise TTSUnavailableError("Offline TTS worker startup timed out") from exc
+
+    try:
+        _validate_ready_line(line)
+    except TTSUnavailableError:
+        _stop_worker_locked()
+        raise
     return process
 
 
@@ -240,22 +305,19 @@ def _request_worker_locked(text: str, output_path: Path) -> None:
     try:
         process.stdin.write(json.dumps(request, ensure_ascii=False) + "\n")
         process.stdin.flush()
-    except (BrokenPipeError, OSError, UnicodeError) as exc:
+    except (BrokenPipeError, OSError, UnicodeError, ValueError) as exc:
         raise TTSSynthesisError(f"Offline TTS worker pipe failed: {exc}") from exc
 
     try:
-        line = _worker_queue.get(timeout=WORKER_TIMEOUT_SECONDS)
+        line = _worker_queue.get(timeout=WORKER_REQUEST_TIMEOUT_SECONDS)
     except queue.Empty as exc:
         raise TTSSynthesisError("Offline TTS worker timed out") from exc
-
     if line is None:
         raise TTSSynthesisError("Offline TTS worker exited unexpectedly")
-
     try:
         response = json.loads(line)
     except json.JSONDecodeError as exc:
         raise TTSSynthesisError("Offline TTS worker returned malformed JSON") from exc
-
     if response.get("id") != request_id:
         raise TTSSynthesisError("Offline TTS worker response ID mismatch")
     if not response.get("ok"):
@@ -263,7 +325,6 @@ def _request_worker_locked(text: str, output_path: Path) -> None:
 
 
 def _synthesize_to_path(text: str, output_path: Path) -> None:
-    """Ask the isolated worker to synthesize one WAV, retrying one worker crash."""
     last_error = None
     for attempt in range(2):
         try:
@@ -280,27 +341,25 @@ def _synthesize_to_path(text: str, output_path: Path) -> None:
 
 
 def ensure_audio(text: str) -> Path:
-    """Return a valid cached WAV, synthesizing and atomically publishing if needed."""
     normalized = normalize_text(text)
     if not normalized:
         raise ValueError("TTS text is empty")
-
     cached = get_cached_audio(normalized)
     if cached is not None:
         return cached
-
     with _tts_lock:
         cached = get_cached_audio(normalized)
         if cached is not None:
             return cached
-
         final_path = _cache_path(normalized)
         final_path.parent.mkdir(parents=True, exist_ok=True)
         temp_path = final_path.parent / f".{final_path.name}.{uuid.uuid4().hex}.tmp.wav"
         try:
             _synthesize_to_path(normalized, temp_path)
             if not _is_valid_wav(temp_path):
-                raise TTSSynthesisError("Offline TTS worker produced an invalid WAV file")
+                raise TTSSynthesisError(
+                    "Offline TTS worker produced an invalid WAV file"
+                )
             os.replace(temp_path, final_path)
             return final_path
         except TTSUnavailableError:
@@ -318,17 +377,17 @@ def ensure_audio(text: str) -> Path:
 
 
 def precache_students(students: list[dict]) -> dict:
-    """Best-effort cache generation for unique non-empty student names."""
     unique = []
     seen = set()
     for student in students or []:
         record = student or {}
-        name = normalize_text(record.get("full_name") or record.get("fullName") or "")
+        name = normalize_text(
+            record.get("full_name") or record.get("fullName") or ""
+        )
         if not name or name in seen:
             continue
         seen.add(name)
         unique.append(name)
-
     result = {"total": len(unique), "generated": 0, "cached": 0, "failed": 0}
     for name in unique:
         if get_cached_audio(name) is not None:
