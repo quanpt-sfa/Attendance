@@ -15,10 +15,10 @@ class OfflineTTSAcceptanceTests(unittest.TestCase):
     def tearDown(self):
         tts_service.shutdown_worker()
 
-    def test_attendance_tts_modules_import_without_piper_installed(self):
+    def test_attendance_tts_modules_import_without_vieneu_in_main_interpreter(self):
         code = (
             "import sys; "
-            "sys.modules['piper'] = None; "
+            "sys.modules['vieneu'] = None; "
             "import tts_service, tts_worker, server_tts, startup; "
             "print('ok')"
         )
@@ -37,13 +37,17 @@ class OfflineTTSAcceptanceTests(unittest.TestCase):
             root = Path(tmp)
             with (
                 mock.patch.object(tts_service, "TTS_VENV", root / ".venv-tts"),
-                mock.patch.object(tts_service, "VOICE_DIR", root / "voices"),
+                mock.patch.object(tts_service, "TTS_RUNTIME_ROOT", root / "runtime"),
+                mock.patch.object(tts_service, "HF_HOME", root / "runtime" / "hf"),
+                mock.patch.object(tts_service, "HF_HUB_CACHE", root / "runtime" / "hf" / "hub"),
+                mock.patch.object(tts_service, "SETUP_MANIFEST", root / "runtime" / "setup.json"),
                 mock.patch.object(tts_service, "CACHE_DIR", root / "cache"),
             ):
                 status = tts_service.get_status()
         self.assertFalse(status["available"])
         self.assertFalse(status["runtime_present"])
-        self.assertFalse(status["model_present"])
+        self.assertFalse(status["offline_assets_present"])
+        self.assertFalse(status["package_present"])
 
     def test_fake_synthesis_creates_reusable_offline_cache(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -74,7 +78,7 @@ class OfflineTTSAcceptanceTests(unittest.TestCase):
     def test_runtime_artifact_paths_are_gitignored(self):
         ignore = (Path(__file__).resolve().parent / ".gitignore").read_text(encoding="utf-8-sig")
         self.assertIn(".venv-tts/", ignore)
-        self.assertIn("tts/voices/", ignore)
+        self.assertIn("tts/runtime/", ignore)
         self.assertIn("tts_cache/", ignore)
 
 
