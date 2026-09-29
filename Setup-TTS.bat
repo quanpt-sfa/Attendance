@@ -129,12 +129,13 @@ if /i not "%NGHI_ACTUAL%"=="%NGHI_COMMIT%" (
     echo Actual:   %NGHI_ACTUAL%
     goto :fail
 )
-> "%NGHI_MARKER%" echo %NGHI_COMMIT%
+if exist "%NGHI_MARKER%" del /q "%NGHI_MARKER%" >nul 2>&1
 pushd "%NGHI_ROOT%"
 call "%NPM_CMD%" ci --omit=dev
 set "NPM_RC=%ERRORLEVEL%"
 popd
 if not "%NPM_RC%"=="0" goto :fail
+> "%NGHI_MARKER%" echo %NGHI_COMMIT%
 
 if not exist "%MODEL_PATH%" (
     echo [6/8] Tai NGHI-TTS voice %VOICE_ID% ...
