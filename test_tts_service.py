@@ -13,10 +13,10 @@ FAKE_WAV = b"RIFF\x04\x00\x00\x00WAVE"
 
 
 class TTSServicePureTests(unittest.TestCase):
-    def test_normalize_text_preserves_vietnamese_and_collapses_whitespace(self):
-        raw = "  Nguye\u0302\u0303n   Thị  An  "
+    def test_normalize_text_preserves_vietnamese_case_and_collapses_whitespace(self):
+        raw = "  Nguye\u0302\u0303n   Thị  THÚY  "
         result = tts_service.normalize_text(raw)
-        self.assertEqual(result, "Nguyễn Thị An")
+        self.assertEqual(result, "Nguyễn Thị THÚY")
         self.assertEqual(unicodedata.normalize("NFC", result), result)
 
     def test_cache_key_is_deterministic_for_same_text_and_config(self):
@@ -26,10 +26,7 @@ class TTSServicePureTests(unittest.TestCase):
         self.assertEqual(len(first), 64)
 
     def test_cache_key_changes_when_text_changes(self):
-        self.assertNotEqual(
-            tts_service.cache_key("Nguyễn Thị An"),
-            tts_service.cache_key("Nguyễn Thị Anh"),
-        )
+        self.assertNotEqual(tts_service.cache_key("Nguyễn Thị An"), tts_service.cache_key("Nguyễn Thị Anh"))
 
     def test_cache_key_changes_when_voice_revision_changes(self):
         original = tts_service.cache_key("Nguyễn Thị An")
@@ -39,13 +36,10 @@ class TTSServicePureTests(unittest.TestCase):
 
     def test_default_voice_is_pinned_nghi_tts_vietnamese_voice(self):
         self.assertEqual(tts_service.VOICE_ID, "calmwoman3688")
-        self.assertEqual(
-            tts_service.VOICE_REVISION,
-            "sannht-vi_voice-62e57b18157ed213b3863a7a8a35b14d3404554b",
-        )
+        self.assertEqual(tts_service.VOICE_REVISION, "sannht-vi_voice-62e57b18157ed213b3863a7a8a35b14d3404554b")
 
-    def test_cache_format_is_bumped_after_sentence_pause_change(self):
-        self.assertEqual(tts_service.CACHE_FORMAT_VERSION, 5)
+    def test_cache_format_is_bumped_for_nghi_frontend(self):
+        self.assertEqual(tts_service.CACHE_FORMAT_VERSION, 6)
 
 
 class TTSServiceCacheTests(unittest.TestCase):
@@ -69,15 +63,12 @@ class TTSServiceCacheTests(unittest.TestCase):
 
     def test_cache_miss_synthesizes_once_then_cache_hit_reuses_file(self):
         calls = []
-
         def synth(text, output_path):
             calls.append(text)
             self.write_fake_wav(text, output_path)
-
         with mock.patch.object(tts_service, "_synthesize_to_path", side_effect=synth):
             first = tts_service.ensure_audio("Nguyễn Thị An")
             second = tts_service.ensure_audio("  Nguyễn   Thị An ")
-
         self.assertEqual(first, second)
         self.assertEqual(calls, ["Nguyễn Thị An"])
         self.assertEqual(first.read_bytes(), FAKE_WAV)
@@ -87,27 +78,21 @@ class TTSServiceCacheTests(unittest.TestCase):
         start = threading.Barrier(3)
         results = []
         errors = []
-
         def synth(text, output_path):
             calls.append(text)
             time.sleep(0.05)
             self.write_fake_wav(text, output_path)
-
         def run():
             try:
                 start.wait()
                 results.append(tts_service.ensure_audio("Nguyễn Văn Bình"))
-            except Exception as exc:  # pragma: no cover - diagnostic capture
+            except Exception as exc:
                 errors.append(exc)
-
         with mock.patch.object(tts_service, "_synthesize_to_path", side_effect=synth):
             threads = [threading.Thread(target=run) for _ in range(2)]
-            for thread in threads:
-                thread.start()
+            for thread in threads: thread.start()
             start.wait()
-            for thread in threads:
-                thread.join(timeout=2)
-
+            for thread in threads: thread.join(timeout=2)
         self.assertEqual(errors, [])
         self.assertEqual(len(results), 2)
         self.assertEqual(results[0], results[1])
@@ -119,11 +104,9 @@ class TTSServiceCacheTests(unittest.TestCase):
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_bytes(b"partial")
             raise RuntimeError("boom")
-
         with mock.patch.object(tts_service, "_synthesize_to_path", side_effect=synth):
             with self.assertRaises(tts_service.TTSSynthesisError):
                 tts_service.ensure_audio("Trần Thị Mai")
-
         files = [path for path in (self.root / "cache").rglob("*") if path.is_file()]
         self.assertEqual(files, [])
 
@@ -135,7 +118,6 @@ class TTSServiceCacheTests(unittest.TestCase):
         cached_path = tts_service._cache_path("Nguyễn Văn An")
         self.write_fake_wav("Nguyễn Văn An", cached_path)
         calls = []
-
         def fake_ensure(name):
             calls.append(name)
             if name == "Lỗi Tổng Hợp":
@@ -143,22 +125,14 @@ class TTSServiceCacheTests(unittest.TestCase):
             path = tts_service._cache_path(name)
             self.write_fake_wav(name, path)
             return path
-
         students = [
-            {"full_name": "Nguyễn Văn An"},
-            {"full_name": "  Nguyễn  Văn An "},
-            {"full_name": "Trần Thị Bình"},
-            {"fullName": "Trần Thị Bình"},
-            {"full_name": "Lỗi Tổng Hợp"},
-            {"full_name": "   "},
+            {"full_name": "Nguyễn Văn An"}, {"full_name": "  Nguyễn  Văn An "},
+            {"full_name": "Trần Thị Bình"}, {"fullName": "Trần Thị Bình"},
+            {"full_name": "Lỗi Tổng Hợp"}, {"full_name": "   "},
         ]
         with mock.patch.object(tts_service, "ensure_audio", side_effect=fake_ensure):
             result = tts_service.precache_students(students)
-
-        self.assertEqual(
-            result,
-            {"total": 3, "generated": 1, "cached": 1, "failed": 1},
-        )
+        self.assertEqual(result, {"total": 3, "generated": 1, "cached": 1, "failed": 1})
         self.assertEqual(calls, ["Trần Thị Bình", "Lỗi Tổng Hợp"])
 
 
@@ -168,44 +142,87 @@ class TTSServiceStatusTests(unittest.TestCase):
             root = Path(tmp)
             with (
                 mock.patch.object(tts_service, "TTS_VENV", root / ".venv-tts"),
+                mock.patch.object(tts_service, "NODE_EXE", root / "node.exe"),
+                mock.patch.object(tts_service, "NGHI_ROOT", root / "nghitts"),
+                mock.patch.object(tts_service, "NGHI_ADAPTER", root / "nghi_frontend.mjs"),
                 mock.patch.object(tts_service, "VOICE_DIR", root / "voices"),
                 mock.patch.object(tts_service, "CACHE_DIR", root / "cache"),
             ):
                 status = tts_service.get_status()
-
         self.assertFalse(status["available"])
         self.assertFalse(status["runtime_present"])
+        self.assertFalse(status["python_runtime_present"])
+        self.assertFalse(status["node_runtime_present"])
+        self.assertFalse(status["nghi_frontend_present"])
         self.assertFalse(status["model_present"])
-        self.assertEqual(status["voice"], "calmwoman3688")
-        self.assertEqual(status["cache_files"], 0)
+        self.assertEqual(status["backend"], "nghi-frontend+python-piper-onnx")
+
+    def test_available_requires_python_node_nghi_adapter_and_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            venv = root / ".venv-tts"
+            python_path = venv / ("Scripts/python.exe" if tts_service.os.name == "nt" else "bin/python")
+            python_path.parent.mkdir(parents=True)
+            python_path.write_text("", encoding="utf-8")
+            node = root / "node.exe"; node.write_text("", encoding="utf-8")
+            nghi = root / "nghitts"; nghi.mkdir()
+            adapter = root / "nghi_frontend.mjs"; adapter.write_text("", encoding="utf-8")
+            voices = root / "voices"; voices.mkdir()
+            (voices / tts_service.VOICE_MODEL_NAME).write_bytes(b"model")
+            (voices / tts_service.VOICE_CONFIG_NAME).write_text("{}", encoding="utf-8")
+            with (
+                mock.patch.object(tts_service, "TTS_VENV", venv),
+                mock.patch.object(tts_service, "NODE_EXE", node),
+                mock.patch.object(tts_service, "NGHI_ROOT", nghi),
+                mock.patch.object(tts_service, "NGHI_ADAPTER", adapter),
+                mock.patch.object(tts_service, "VOICE_DIR", voices),
+            ):
+                status = tts_service.get_status()
+            self.assertTrue(status["available"])
+            self.assertTrue(status["runtime_present"])
+
+    def test_get_status_is_read_only_and_does_not_start_worker(self):
+        with mock.patch.object(tts_service, "_start_worker_locked") as start:
+            tts_service.get_status()
+        start.assert_not_called()
 
 
 class TTSWorkerLaunchTests(unittest.TestCase):
     def tearDown(self):
         tts_service.shutdown_worker()
 
-    def test_worker_process_forces_utf8_standard_streams(self):
+    def test_worker_process_forces_utf8_and_passes_nghi_runtime_paths(self):
         class FakeProcess:
             stdin = None
             stdout = []
-
-            def poll(self):
-                return 0
-
+            def poll(self): return 0
         fake_process = FakeProcess()
         existing_script = Path(__file__).resolve()
         with (
             mock.patch.object(tts_service, "_runtime_state", return_value=(True, True)),
             mock.patch.object(tts_service, "WORKER_SCRIPT", existing_script),
-            mock.patch.object(tts_service, "_worker_python", return_value=Path("python")),
-            mock.patch.object(tts_service, "_voice_model", return_value=Path("voice.onnx")),
-            mock.patch.object(tts_service, "_voice_config", return_value=Path("voice.onnx.json")),
+            mock.patch.object(tts_service, "_worker_python", return_value=Path(r"C:\Python Path\python.exe")),
+            mock.patch.object(tts_service, "_voice_model", return_value=Path(r"D:\Voice Path\voice.onnx")),
+            mock.patch.object(tts_service, "_voice_config", return_value=Path(r"D:\Voice Path\voice.onnx.json")),
+            mock.patch.object(tts_service, "NODE_EXE", Path(r"C:\Node Path\node.exe")),
+            mock.patch.object(tts_service, "NGHI_ROOT", Path(r"D:\NGHI Path\nghitts")),
+            mock.patch.object(tts_service, "NGHI_ADAPTER", Path(r"D:\App Path\tts\nghi_frontend.mjs")),
             mock.patch.object(tts_service.subprocess, "Popen", return_value=fake_process) as popen,
         ):
             tts_service._start_worker_locked()
-
+        command = popen.call_args.args[0]
         env = popen.call_args.kwargs["env"]
         self.assertEqual(env["PYTHONIOENCODING"], "utf-8:strict")
+        self.assertIn("--node", command)
+        self.assertIn(str(tts_service.NODE_EXE), command)
+        self.assertIn("--nghi-root", command)
+        self.assertIn(str(tts_service.NGHI_ROOT), command)
+        self.assertIn("--nghi-adapter", command)
+        self.assertIn(str(tts_service.NGHI_ADAPTER), command)
+        self.assertIn("--nghi-commit", command)
+        self.assertIn(tts_service.NGHI_COMMIT, command)
+        self.assertNotIn("--native-piper", command)
+        self.assertFalse(any('"' in part for part in command))
 
 
 if __name__ == "__main__":
