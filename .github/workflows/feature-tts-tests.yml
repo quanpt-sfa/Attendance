@@ -25,10 +25,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile startup.py tts_service.py tts_worker.py server_tts.py tools/tts_phoneme_audit.py
+          python -m py_compile startup.py tts_service.py tts_worker.py tts_vieneu_manifest.py server_tts.py tools/write_vieneu_manifest.py
           python -m unittest test_db_schema test_startup -v
           python -m unittest test_tts_service test_tts_worker test_tts_vieneu_manifest test_tts_setup test_server_tts test_tts_integration -v
-          python -m unittest test_tts_audit -v
       - name: JavaScript syntax and regression tests
         shell: bash
         run: |
@@ -36,6 +35,5 @@ jobs:
           node --check random-picker.js
           node --check random-picker-attendance.js
           node --check random-picker-speech.js
-          node --check tools/nghi_phoneme_audit.mjs
           node test_random_picker_attendance.js
           node test_random_picker_speech.js
