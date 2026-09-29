@@ -279,17 +279,41 @@ class NghiOnnxSynthesizerTests(unittest.TestCase):
 
 
 class TTSWindowsScriptContractTests(unittest.TestCase):
-    def test_setup_script_pins_native_windows_runtime_voice_and_smoke_test(self):
+    def test_setup_script_installs_pinned_nghi_frontend_and_python_inference(self):
         text = (ROOT / "Setup-TTS.bat").read_text(encoding="utf-8").lower()
-        self.assertIn("piper_windows_amd64.zip", text)
-        self.assertIn("2023.11.14-2", text)
+        self.assertIn('set "piper_version=1.8.0"', text)
+        self.assertIn('piper-tts==%piper_version%', text)
+        self.assertIn('set "node_version=22.23.3"', text)
+        self.assertIn('node-v%node_version%-win-x64.zip', text)
+        self.assertIn('shasums256.txt', text)
+        self.assertIn('get-filehash -algorithm sha256', text)
+        self.assertIn('set "nghi_commit=46d160da32041f7e176607203b958069265df7da"', text)
+        self.assertIn('git clone', text)
+        self.assertIn('git rev-parse head', text)
+        self.assertIn('npm.cmd', text)
+        self.assertIn('npm ci', text)
         self.assertIn('set "voice_id=calmwoman3688"', text)
-        self.assertIn("--smoke-test", text)
+        self.assertIn('voice_revision=62e57b18157ed213b3863a7a8a35b14d3404554b', text)
+        self.assertIn('8db60d8afc50dc0921fd3a1b0b942813f44cc3744dbe2534617f2b8726096e7e', text)
+        self.assertIn('971f57f8d504223fee5b40d664f503cf769baf7db21f7d2ae0554a75d07de2f8', text)
+        self.assertIn('--smoke-test', text)
+        self.assertIn('--node', text)
+        self.assertIn('--nghi-adapter', text)
+        self.assertIn('--nghi-root', text)
+        self.assertIn('--nghi-commit', text)
+        self.assertNotIn('piper_windows_amd64.zip', text)
+        self.assertNotIn('2023.11.14-2', text)
+        self.assertNotIn('--native-piper', text)
 
-    def test_check_script_is_read_only(self):
+    def test_check_script_is_read_only_and_reports_each_runtime_component(self):
         text = (ROOT / "Check-TTS.bat").read_text(encoding="utf-8").lower()
         self.assertIn("tts_service.get_status", text)
-        for forbidden in ("pip install", "invoke-webrequest", "curl ", "bitsadmin", "start-bitstransfer"):
+        for label in ("python:", "node:", "nghi:", "model:", "backend:", "cache:"):
+            self.assertIn(label, text)
+        for forbidden in (
+            "pip install", "npm ci", "git clone", "invoke-webrequest", "curl ",
+            "bitsadmin", "start-bitstransfer",
+        ):
             self.assertNotIn(forbidden, text)
 
 
