@@ -8,11 +8,16 @@ import sys
 from pathlib import Path
 from typing import Callable, TextIO
 
+from tts_vieneu_assets import CODEC_DIR, MODEL_ROOT, ONNX_DIR
+
 READY_EVENT_TYPE = "ready"
 DEFAULT_VOICE = "Thùy Dung"
 ENGINE_ID = "vieneu-v3-turbo"
 BACKEND_ID = "onnx-fp32"
 SAMPLE_RATE = 48_000
+VIENEU_MODEL_ROOT = MODEL_ROOT
+VIENEU_ONNX_DIR = ONNX_DIR
+VIENEU_CODEC_DIR = CODEC_DIR
 DEFAULT_SMOKE_TEXT = (
     "Huỳnh Quốc Phước đã điểm danh thành công. Mời sinh viên tiếp theo."
 )
@@ -85,7 +90,14 @@ class VieneuSynthesizer:
             return self._engine
         with contextlib.redirect_stdout(self.stderr):
             factory = self._resolve_factory()
-            engine = factory(mode="v3turbo", backend="onnx", precision="fp32")
+            engine = factory(
+                mode="v3turbo",
+                backend="onnx",
+                precision="fp32",
+                backbone_repo=str(VIENEU_MODEL_ROOT),
+                onnx_dir=str(VIENEU_ONNX_DIR),
+                codec_dir=str(VIENEU_CODEC_DIR),
+            )
             voices = engine.list_preset_voices()
         exact_ids = {
             str(item[1])
