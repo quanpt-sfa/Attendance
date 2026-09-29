@@ -7,6 +7,7 @@ import types
 import unittest
 import wave
 from pathlib import Path
+from unittest import mock
 
 import tts_worker
 
@@ -50,7 +51,7 @@ class VieneuSynthesizerTests(unittest.TestCase):
         calls = []
         engine = FakeEngine()
         synth = tts_worker.VieneuSynthesizer(factory=self._factory(engine, calls), stderr=io.StringIO())
-        with tempfile.TemporaryDirectory() as tmp, unittest.mock.patch.dict(sys.modules, {"soundfile": self._fake_soundfile([])}):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(sys.modules, {"soundfile": self._fake_soundfile([])}):
             synth("Huỳnh Quốc Phước.", Path(tmp) / "a.wav")
             synth("Mời sinh viên tiếp theo.", Path(tmp) / "b.wav")
         self.assertEqual(calls, [{"mode": "v3turbo", "backend": "onnx", "precision": "fp32"}])
@@ -74,7 +75,7 @@ class VieneuSynthesizerTests(unittest.TestCase):
         protocol_stdout = io.StringIO()
         synth = tts_worker.VieneuSynthesizer(factory=self._factory(engine, factory_calls), stderr=sdk_stderr)
         text = "HUỲNH Quốc Phước đã điểm danh thành công. Mời sinh viên tiếp theo."
-        with tempfile.TemporaryDirectory() as tmp, unittest.mock.patch.dict(sys.modules, {"soundfile": self._fake_soundfile(sf_calls)}), contextlib.redirect_stdout(protocol_stdout):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(sys.modules, {"soundfile": self._fake_soundfile(sf_calls)}), contextlib.redirect_stdout(protocol_stdout):
             output = Path(tmp) / "out.wav"
             synth(text, output)
             with wave.open(str(output), "rb") as wf:
