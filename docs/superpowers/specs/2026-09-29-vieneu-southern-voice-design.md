@@ -177,10 +177,11 @@ It must:
 6. Verify the exact `Thùy Dung` preset exists.
 7. Run a real smoke synthesis that forces the required v3 Turbo ONNX/model/codec artifacts to download.
 8. Record a local setup manifest containing at least package version, selected voice, backend, setup timestamp, and resolved downloaded artifact filenames/sizes when discoverable.
-9. Run the same smoke synthesis again with Hugging Face offline mode enabled.
-10. Report setup success only if the offline smoke synthesis succeeds and produces a valid WAV.
+9. Terminate the online smoke process completely.
+10. Launch a **fresh Python process** with the Attendance-owned cache configured and `HF_HUB_OFFLINE=1`, instantiate VieNeu again from disk, and run the same smoke synthesis.
+11. Report setup success only if that fresh-process offline smoke synthesis succeeds and produces a valid WAV.
 
-The setup script must fail closed if the package, model artifacts, voice, or offline smoke test is incomplete.
+The setup script must fail closed if the package, model artifacts, voice, or fresh-process offline smoke test is incomplete. Reusing an already-loaded engine is not accepted as proof of offline readiness.
 
 ## 10. Runtime offline guarantee
 
@@ -291,7 +292,8 @@ Using a fake VieNeu object:
 - setup pins `vieneu==3.8.3`;
 - setup verifies preset voice;
 - setup performs an online smoke synthesis;
-- setup performs a second smoke synthesis under `HF_HUB_OFFLINE=1`;
+- setup terminates that process before testing offline readiness;
+- setup launches a fresh Python process under `HF_HUB_OFFLINE=1` for the second smoke synthesis;
 - check script contains no download/install commands.
 
 ### CI
@@ -322,7 +324,7 @@ There will be one production local TTS backend, not a hidden chain of multiple e
 6. Update documentation and remove obsolete Piper-specific guidance from tracked files.
 7. Run full repository regression tests.
 8. Run Windows online setup.
-9. Prove second smoke synthesis works with offline mode.
+9. Prove a **fresh process** can synthesize with offline mode enabled.
 10. Listen to acceptance sentences.
 11. Only after user acceptance, open/merge the VieNeu PR.
 12. Close superseded NGHI/Piper PR #10 without merging.
