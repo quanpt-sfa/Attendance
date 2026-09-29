@@ -1,9 +1,9 @@
 """Offline Vietnamese TTS cache/service boundary for Attendance.
 
-The main Attendance process never imports Piper. Synthesis is delegated to
-``tts_worker.py`` running under the isolated ``.venv-tts`` interpreter. On
-Windows, that worker uses the bundled native Piper executable so Vietnamese
-phonemization does not depend on Python ``espeakbridge``.
+The main Attendance process never imports Piper or NGHI. Synthesis is delegated
+to ``tts_worker.py`` under the isolated ``.venv-tts`` interpreter. The worker
+uses a pinned local NGHI Node frontend for linguistic processing and Python
+Piper only as the ONNX inference wrapper.
 """
 
 from __future__ import annotations
@@ -24,13 +24,16 @@ PROJECT_DIR = Path(__file__).resolve().parent
 TTS_VENV = PROJECT_DIR / ".venv-tts"
 VOICE_DIR = PROJECT_DIR / "tts" / "voices"
 TTS_RUNTIME_DIR = PROJECT_DIR / "tts" / "runtime"
-NATIVE_PIPER = TTS_RUNTIME_DIR / "piper" / "piper.exe"
+NODE_EXE = TTS_RUNTIME_DIR / "node" / "node.exe"
+NGHI_ROOT = TTS_RUNTIME_DIR / "nghitts"
+NGHI_ADAPTER = PROJECT_DIR / "tts" / "nghi_frontend.mjs"
 CACHE_DIR = PROJECT_DIR / "tts_cache"
 WORKER_SCRIPT = PROJECT_DIR / "tts_worker.py"
 
+NGHI_COMMIT = "46d160da32041f7e176607203b958069265df7da"
 VOICE_ID = "calmwoman3688"
 VOICE_REVISION = "sannht-vi_voice-62e57b18157ed213b3863a7a8a35b14d3404554b"
-CACHE_FORMAT_VERSION = 5
+CACHE_FORMAT_VERSION = 7
 WORKER_TIMEOUT_SECONDS = 20.0
 
 VOICE_MODEL_NAME = f"{VOICE_ID}.onnx"
@@ -51,7 +54,12 @@ class TTSSynthesisError(RuntimeError):
 
 
 def normalize_text(text: str) -> str:
-    """Normalize text for deterministic synthesis/cache identity."""
+    """Normalize text for deterministic synthesis/cache identity.
+
+    Case and punctuation are intentionally preserved so the pinned NGHI frontend
+    receives the source linguistic representation unchanged apart from Unicode
+    normalization and whitespace collapsing.
+    """
     value = unicodedata.normalize("NFC", str(text or ""))
     return re.sub(r"\s+", " ", value).strip()
 
@@ -106,27 +114,65 @@ def get_cached_audio(text: str) -> Path | None:
     return path if _is_valid_wav(path) else None
 
 
-def _runtime_state() -> tuple[bool, bool]:
-    runtime_present = _worker_python().is_file()
-    if os.name == "nt":
-        runtime_present = runtime_present and NATIVE_PIPER.is_file()
+def _nghi_frontend_ready() -> bool:
+    """Return whether the pinned NGHI checkout and required npm asset are complete."""
+    if not NGHI_ROOT.is_dir() or not NGHI_ADAPTER.is_file():
+        return False
+    marker = NGHI_ROOT / ".attendance-nghi-commit"
+    phonemizer = NGHI_ROOT / "node_modules" / "phonemizer"
+    if not marker.is_file() or not phonemizer.is_dir():
+        return False
+    try:
+        return marker.read_text(encoding="utf-8").strip() == NGHI_COMMIT
+    except OSError:
+        return False
+
+
+def _runtime_components() -> dict:
+    """Return local runtime presence without starting either worker."""
+    python_runtime_present = _worker_python().is_file()
+    node_runtime_present = NODE_EXE.is_file()
+    nghi_frontend_present = _nghi_frontend_ready()
     model_present = _voice_model().is_file() and _voice_config().is_file()
-    return runtime_present, model_present
+    runtime_present = bool(
+        python_runtime_present and node_runtime_present and nghi_frontend_present
+    )
+    return {
+        "python_runtime_present": python_runtime_present,
+        "node_runtime_present": node_runtime_present,
+        "nghi_frontend_present": nghi_frontend_present,
+        "runtime_present": runtime_present,
+        "model_present": model_present,
+    }
+
+
+def _runtime_state() -> tuple[bool, bool]:
+    """Compatibility tuple used by worker startup and existing callers/tests."""
+    state = _runtime_components()
+    return bool(state["runtime_present"]), bool(state["model_present"])
 
 
 def get_status() -> dict:
-    runtime_present, model_present = _runtime_state()
+    components = _runtime_components()
     try:
         cache_files = sum(1 for path in CACHE_DIR.rglob("*.wav") if _is_valid_wav(path))
     except OSError:
         cache_files = 0
+    available = bool(
+        components["runtime_present"]
+        and components["model_present"]
+        and WORKER_SCRIPT.is_file()
+    )
     return {
-        "available": bool(runtime_present and model_present and WORKER_SCRIPT.is_file()),
+        "available": available,
         "voice": VOICE_ID,
         "voice_revision": VOICE_REVISION,
-        "backend": "native-piper" if os.name == "nt" else "python-piper",
-        "runtime_present": runtime_present,
-        "model_present": model_present,
+        "backend": "nghi-frontend+python-piper-onnx",
+        "runtime_present": bool(components["runtime_present"]),
+        "python_runtime_present": bool(components["python_runtime_present"]),
+        "node_runtime_present": bool(components["node_runtime_present"]),
+        "nghi_frontend_present": bool(components["nghi_frontend_present"]),
+        "model_present": bool(components["model_present"]),
         "cache_files": cache_files,
     }
 
@@ -189,9 +235,15 @@ def _start_worker_locked():
         str(_voice_model()),
         "--config",
         str(_voice_config()),
+        "--node",
+        str(NODE_EXE),
+        "--nghi-adapter",
+        str(NGHI_ADAPTER),
+        "--nghi-root",
+        str(NGHI_ROOT),
+        "--nghi-commit",
+        NGHI_COMMIT,
     ]
-    if os.name == "nt":
-        command.extend(["--native-piper", str(NATIVE_PIPER)])
 
     worker_env = os.environ.copy()
     worker_env["PYTHONIOENCODING"] = "utf-8:strict"

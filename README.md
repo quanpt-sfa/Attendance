@@ -146,19 +146,40 @@ Nếu scanner của bạn dùng **Web Serial** hoặc **WebUSB**, bạn cần co
 
 ## Offline Vietnamese TTS cho Random Picker
 
-Phiên bản server Python hiện tại có thể đọc tên sinh viên bằng Piper chạy hoàn toàn local. Trên Windows, Attendance dùng **Piper native** thay vì Python `piper-tts/espeakbridge`; cách này tránh lỗi Unicode surrogate khi phonemize tên tiếng Việt. Random Picker ưu tiên WAV đã cache; nếu TTS local chưa sẵn sàng hoặc phát audio lỗi, hệ thống tự quay về giọng `speechSynthesis` của trình duyệt.
+Phiên bản server Python có thể đọc tên sinh viên bằng voice NGHI-TTS `calmwoman3688` hoàn toàn local. Pipeline không dùng stock Piper/eSpeak để phonemize tiếng Việt. Thay vào đó, Attendance chạy đúng linguistic frontend của NGHI-TTS để tạo sentence chunks và phoneme IDs, rồi đưa các ID đó trực tiếp vào model ONNX qua Piper Python inference. Random Picker ưu tiên WAV đã cache; nếu TTS local chưa sẵn sàng hoặc phát audio lỗi, hệ thống tự quay về `speechSynthesis` của trình duyệt.
+
+Pipeline production:
+
+```text
+text tiếng Việt
+→ NGHI-TTS frontend (pinned commit)
+→ exact phoneme IDs theo từng sentence chunk
+→ Piper/ONNX inference từ IDs
+→ WAV local
+→ cache
+→ Random Picker
+```
+
+Dấu `. ! ?` được xử lý bởi sentence chunking của NGHI; dấu `, ; :` được giữ trong linguistic representation khi NGHI yêu cầu. Attendance không tự chèn silence PCM, không dùng `--sentence-silence`, và không tự regex-split câu.
 
 ### Cài TTS một lần
 
-Cần Internet cho đúng bước này. Trong thư mục Attendance trên Windows chạy:
+Bước setup cần Internet, Python x64 và Git for Windows. Trong thư mục Attendance chạy:
 
 ```powershell
 .\Setup-TTS.bat
 ```
 
-Script tạo `.venv-tts` riêng cho worker, tải Piper native Windows `2023.11.14-2`, tải voice tiếng Việt NGHI-TTS `calmwoman3688`, kiểm tra SHA-256 của model và config, rồi chạy smoke test bằng nhiều tên Việt có dấu. Python `piper-tts` không còn được dùng để phonemize trên Windows.
+Script thực hiện các bước sau:
 
-Voice được pin vào một revision cố định của bộ model `sannht/vi_voice` để tránh việc model thay đổi âm thầm. Config của `calmwoman3688` dùng eSpeak voice `vi` và sample rate 22050 Hz.
+- tạo `.venv-tts` riêng và pin `piper-tts==1.8.0` cho ONNX inference;
+- tải Node.js portable `v22.23.3` x64 vào `tts\runtime\node` và kiểm SHA-256 theo `SHASUMS256.txt` chính thức của Node.js trước khi giải nén;
+- checkout NGHI-TTS đúng commit `46d160da32041f7e176607203b958069265df7da` vào `tts\runtime\nghitts` và cài dependency bằng portable npm;
+- tải voice `calmwoman3688` từ revision cố định `sannht/vi_voice@62e57b18157ed213b3863a7a8a35b14d3404554b`;
+- kiểm SHA-256 của model và config;
+- chạy smoke test qua đúng production path `NGHI frontend → phoneme IDs → ONNX`.
+
+Model và frontend đều được pin để tránh thay đổi âm thầm. Voice dùng sample rate 22050 Hz. Sau khi setup hoàn tất, synthesis bình thường không cần Internet.
 
 Kiểm tra trạng thái bất kỳ lúc nào:
 
@@ -166,18 +187,28 @@ Kiểm tra trạng thái bất kỳ lúc nào:
 .\Check-TTS.bat
 ```
 
-Trạng thái sẵn sàng trên Windows có dạng:
+Ví dụ trạng thái sẵn sàng:
 
 ```text
-Piper: READY
+TTS: READY
 Voice: calmwoman3688
-Backend: native-piper
-Runtime: OK
+Backend: nghi-frontend+python-piper-onnx
+Python: OK
+Node: OK
+NGHI: OK
 Model: OK
 Cache: 42 WAV file(s)
 ```
 
-Nếu máy đã cài TTS bằng phiên bản cũ, hãy `git pull` rồi chạy lại `Setup-TTS.bat`. Script chỉ tải Piper native nếu runtime chưa có; model/config đã đúng sẽ được tái sử dụng. Cache format được version hóa nên WAV tạo bởi backend cũ tự động không được tái sử dụng.
+Nếu máy đã cài TTS bằng kiến trúc cũ, hãy `git pull` rồi chạy lại `Setup-TTS.bat`. Cache format hiện là version 6, nên WAV sinh bởi frontend cũ không được tái sử dụng.
+
+Có thể chạy parity audit sau setup để xác nhận production frontend tạo đúng chunk/text/phoneme IDs như NGHI upstream:
+
+```powershell
+.\tools\tts_phoneme_audit.ps1
+```
+
+Audit này chỉ đọc runtime đã cài, không tải dependency và không dùng native Piper. Kết quả nằm trong `tts_audit_output\tts_phoneme_audit.md` và `.json`.
 
 ### Chạy Attendance
 
@@ -187,7 +218,7 @@ Dùng launcher Python canonical, có thể chọn port:
 .\Start-Server.bat 8080
 ```
 
-Sau khi `Setup-TTS.bat` đã hoàn tất một lần, việc tạo và phát giọng tên sinh viên không cần Internet. Khi thêm, import hoặc cập nhật sinh viên thành công, server sẽ precache tên trong background. Lúc Random Picker gọi một sinh viên từ database, server trả WAV local; cache hit không chạy Piper lần nữa.
+Khi thêm, import hoặc cập nhật sinh viên thành công, server precache tên trong background. Lúc Random Picker gọi một sinh viên từ database, server trả WAV local; cache hit không chạy model lần nữa.
 
 Các dữ liệu local sau không được commit lên Git:
 
@@ -196,6 +227,7 @@ Các dữ liệu local sau không được commit lên Git:
 tts/voices/
 tts/runtime/
 tts_cache/
+tts_audit_output/
 ```
 
 Nếu TTS chưa sẵn sàng, Attendance vẫn khởi động và hoạt động; Random Picker dùng giọng trình duyệt làm fallback. Danh sách Excel nạp trực tiếp vào Random Picker cũng tiếp tục dùng fallback này vì không có định danh lớp/database.
