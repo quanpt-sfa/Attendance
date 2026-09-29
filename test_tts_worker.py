@@ -14,16 +14,9 @@ ROOT = Path(__file__).resolve().parent
 class TTSWorkerProtocolTests(unittest.TestCase):
     def test_valid_synthesis_request_preserves_id_and_calls_synthesizer(self):
         calls = []
-
         def synthesize(text, output):
             calls.append((text, Path(output)))
-
-        request = {
-            "id": "req-1",
-            "action": "synthesize",
-            "text": "Nguyễn Văn An",
-            "output": "out.wav",
-        }
+        request = {"id": "req-1", "action": "synthesize", "text": "Nguyễn Văn An", "output": "out.wav"}
         response = tts_worker.handle_request(request, synthesize)
         self.assertEqual(response, {"id": "req-1", "ok": True})
         self.assertEqual(calls, [("Nguyễn Văn An", Path("out.wav"))])
@@ -56,60 +49,35 @@ class TTSWorkerProtocolTests(unittest.TestCase):
 
 
 class _FakeStdin:
-    def __init__(self, writes):
-        self.writes = writes
-        self.closed = False
-
-    def write(self, value):
-        self.writes.append(value)
-        return len(value)
-
-    def flush(self):
-        pass
-
-    def close(self):
-        self.closed = True
+    def __init__(self, writes): self.writes, self.closed = writes, False
+    def write(self, value): self.writes.append(value); return len(value)
+    def flush(self): pass
+    def close(self): self.closed = True
 
 
 class _FakeStdout:
-    def __init__(self, lines):
-        self.lines = list(lines)
-
-    def readline(self):
-        return self.lines.pop(0) if self.lines else ""
+    def __init__(self, lines): self.lines = list(lines)
+    def readline(self): return self.lines.pop(0) if self.lines else ""
 
 
 class _FakeProcess:
     def __init__(self, lines, writes):
-        self.stdin = _FakeStdin(writes)
-        self.stdout = _FakeStdout(lines)
-        self._returncode = None
-
-    def poll(self):
-        return self._returncode
-
-    def terminate(self):
-        self._returncode = 0
-
-    def kill(self):
-        self._returncode = -9
-
-    def wait(self, timeout=None):
-        self._returncode = 0
-        return 0
+        self.stdin = _FakeStdin(writes); self.stdout = _FakeStdout(lines); self._returncode = None
+    def poll(self): return self._returncode
+    def terminate(self): self._returncode = 0
+    def kill(self): self._returncode = -9
+    def wait(self, timeout=None): self._returncode = 0; return 0
 
 
 class NghiFrontendClientTests(unittest.TestCase):
     def _client(self, responses_per_process, calls):
         responses = list(responses_per_process)
-
         def process_factory(command, **kwargs):
             calls.setdefault("commands", []).append(command)
             calls.setdefault("kwargs", []).append(kwargs)
             writes = []
             calls.setdefault("writes", []).append(writes)
             return _FakeProcess(responses.pop(0), writes)
-
         return tts_worker.NghiFrontendClient(
             Path(r"C:\Program Files\Attendance TTS\node.exe"),
             Path(r"D:\Works With Spaces\attendance\tts\nghi_frontend.mjs"),
@@ -121,10 +89,7 @@ class NghiFrontendClientTests(unittest.TestCase):
 
     def test_frontend_client_passes_source_case_and_validates_matching_id(self):
         calls = {}
-        response = {
-            "id": "fixed-id", "ok": True, "processed_text": "x",
-            "chunks": [{"text": "X.", "phoneme_ids": [1, 0, 137, 0, 2]}],
-        }
+        response = {"id": "fixed-id", "ok": True, "processed_text": "x", "chunks": [{"text": "X.", "phoneme_ids": [1, 0, 137, 0, 2]}]}
         client = self._client([[json.dumps(response) + "\n"]], calls)
         client._new_request_id = lambda: "fixed-id"
         result = client.process("HUỲNH Quốc Phước.")
@@ -139,22 +104,16 @@ class NghiFrontendClientTests(unittest.TestCase):
             {"id": "fixed-id", "ok": True, "processed_text": "x", "chunks": [{"text": "x", "phoneme_ids": [1.5]}]},
         ]
         for payload in bad_payloads:
-            calls = {}
-            client = self._client([[json.dumps(payload) + "\n"], [json.dumps(payload) + "\n"]], calls)
+            calls = {}; client = self._client([[json.dumps(payload) + "\n"], [json.dumps(payload) + "\n"]], calls)
             client._new_request_id = lambda: "fixed-id"
-            with self.assertRaises((RuntimeError, ValueError)):
-                client.process("Xin chào")
-        calls = {}
-        client = self._client([[], []], calls)
-        client._new_request_id = lambda: "fixed-id"
-        with self.assertRaisesRegex(RuntimeError, "exited|eof|response"):
-            client.process("Xin chào")
+            with self.assertRaises((RuntimeError, ValueError)): client.process("Xin chào")
+        calls = {}; client = self._client([[], []], calls); client._new_request_id = lambda: "fixed-id"
+        with self.assertRaisesRegex(RuntimeError, "exited|eof|response"): client.process("Xin chào")
 
     def test_frontend_client_restarts_once_after_sidecar_failure(self):
         calls = {}
         good = {"id": "fixed-id", "ok": True, "processed_text": "x", "chunks": [{"text": "x", "phoneme_ids": [1, 0, 2]}]}
-        client = self._client([[], [json.dumps(good) + "\n"]], calls)
-        client._new_request_id = lambda: "fixed-id"
+        client = self._client([[], [json.dumps(good) + "\n"]], calls); client._new_request_id = lambda: "fixed-id"
         result = client.process("Xin chào")
         self.assertEqual(len(calls["commands"]), 2)
         self.assertEqual(result["chunks"][0]["phoneme_ids"], [1, 0, 2])
@@ -162,9 +121,7 @@ class NghiFrontendClientTests(unittest.TestCase):
     def test_sidecar_command_handles_windows_paths_as_argument_list(self):
         calls = {}
         good = {"id": "fixed-id", "ok": True, "processed_text": "x", "chunks": [{"text": "x", "phoneme_ids": [1, 0, 2]}]}
-        client = self._client([[json.dumps(good) + "\n"]], calls)
-        client._new_request_id = lambda: "fixed-id"
-        client.process("Xin chào")
+        client = self._client([[json.dumps(good) + "\n"]], calls); client._new_request_id = lambda: "fixed-id"; client.process("Xin chào")
         command = calls["commands"][0]
         self.assertEqual(command[0], r"C:\Program Files\Attendance TTS\node.exe")
         self.assertIn(r"D:\Works With Spaces\attendance\tts\nghi_frontend.mjs", command)
@@ -172,31 +129,18 @@ class NghiFrontendClientTests(unittest.TestCase):
         self.assertFalse(any('"' in part for part in command))
 
 
-class _FakeVoiceConfig:
-    sample_rate = 1000
+class _FakeVoiceConfig: sample_rate = 1000
 
 
 class _FakeVoice:
-    def __init__(self, fail_on_call=None):
-        self.config = _FakeVoiceConfig()
-        self.calls = []
-        self.fail_on_call = fail_on_call
-
+    def __init__(self, fail_on_call=None): self.config = _FakeVoiceConfig(); self.calls = []; self.fail_on_call = fail_on_call
     def phoneme_ids_to_audio(self, ids, syn_config=None, include_alignments=False):
         self.calls.append((list(ids), syn_config))
-        if self.fail_on_call == len(self.calls):
-            raise RuntimeError("onnx failed")
-        value = 0.25 if len(self.calls) == 1 else -0.25
-        return [value] * 4
-
-    def phonemize(self, *_args, **_kwargs):
-        raise AssertionError("stock Piper phonemizer must not be called")
-
-    def synthesize(self, *_args, **_kwargs):
-        raise AssertionError("Piper synthesize(text) must not be called")
-
-    def synthesize_wav(self, *_args, **_kwargs):
-        raise AssertionError("Piper synthesize_wav(text) must not be called")
+        if self.fail_on_call == len(self.calls): raise RuntimeError("onnx failed")
+        return [0.25 if len(self.calls) == 1 else -0.25] * 4
+    def phonemize(self, *_args, **_kwargs): raise AssertionError("stock Piper phonemizer must not be called")
+    def synthesize(self, *_args, **_kwargs): raise AssertionError("Piper synthesize(text) must not be called")
+    def synthesize_wav(self, *_args, **_kwargs): raise AssertionError("Piper synthesize_wav(text) must not be called")
 
 
 class _FakeFrontend:
@@ -204,77 +148,56 @@ class _FakeFrontend:
         self.chunks = chunks or [
             {"text": "câu một.", "phoneme_ids": [1, 0, 131, 0, 2]},
             {"text": "câu hai.", "phoneme_ids": [1, 0, 137, 0, 2]},
-        ]
-        self.error = error
-        self.seen = []
-
+        ]; self.error = error; self.seen = []
     def process(self, text):
         self.seen.append(text)
-        if self.error:
-            raise self.error
+        if self.error: raise self.error
         return {"processed_text": text.lower(), "chunks": self.chunks}
-
-    def close(self):
-        pass
+    def close(self): pass
 
 
 class NghiOnnxSynthesizerTests(unittest.TestCase):
     def _synth(self, frontend=None, voice=None):
         synth = tts_worker.NghiOnnxSynthesizer(Path("voice.onnx"), Path("voice.onnx.json"), frontend or _FakeFrontend())
         synth._voice = voice or _FakeVoice()
-        synth._make_synthesis_config = lambda: type("Cfg", (), {
-            "speaker_id": 0, "length_scale": 1.0, "noise_scale": 0.667, "noise_w_scale": 0.8
-        })()
+        synth._make_synthesis_config = lambda: type("Cfg", (), {"speaker_id": 0, "length_scale": 1.0, "noise_scale": 0.667, "noise_w_scale": 0.8})()
         return synth
 
     def test_synthesizer_calls_phoneme_ids_to_audio_per_chunk_in_order(self):
-        voice = _FakeVoice()
-        synth = self._synth(voice=voice)
-        with tempfile.TemporaryDirectory() as tmp:
-            synth("HUỲNH Quốc Phước. Mời sinh viên tiếp theo.", Path(tmp) / "out.wav")
+        voice = _FakeVoice(); synth = self._synth(voice=voice)
+        with tempfile.TemporaryDirectory() as tmp: synth("HUỲNH Quốc Phước. Mời sinh viên tiếp theo.", Path(tmp) / "out.wav")
         self.assertEqual([call[0] for call in voice.calls], [[1, 0, 131, 0, 2], [1, 0, 137, 0, 2]])
 
     def test_synthesizer_uses_nghi_default_scales_and_speaker_zero(self):
-        voice = _FakeVoice()
-        synth = self._synth(voice=voice)
-        with tempfile.TemporaryDirectory() as tmp:
-            synth("Xin chào.", Path(tmp) / "out.wav")
+        voice = _FakeVoice(); synth = self._synth(voice=voice)
+        with tempfile.TemporaryDirectory() as tmp: synth("Xin chào.", Path(tmp) / "out.wav")
         cfg = voice.calls[0][1]
-        self.assertEqual(cfg.speaker_id, 0)
-        self.assertEqual(cfg.length_scale, 1.0)
-        self.assertAlmostEqual(cfg.noise_scale, 0.667)
-        self.assertAlmostEqual(cfg.noise_w_scale, 0.8)
+        self.assertEqual(cfg.speaker_id, 0); self.assertEqual(cfg.length_scale, 1.0)
+        self.assertAlmostEqual(cfg.noise_scale, 0.667); self.assertAlmostEqual(cfg.noise_w_scale, 0.8)
 
     def test_synthesizer_appends_chunk_audio_without_inserted_samples(self):
         synth = self._synth()
         with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / "out.wav"
-            synth("Hai câu.", output)
+            output = Path(tmp) / "out.wav"; synth("Hai câu.", output)
             with wave.open(str(output), "rb") as wav_file:
-                self.assertEqual(wav_file.getframerate(), 1000)
-                self.assertEqual(wav_file.getnchannels(), 1)
-                self.assertEqual(wav_file.getsampwidth(), 2)
-                self.assertEqual(wav_file.getnframes(), 8)
+                self.assertEqual(wav_file.getframerate(), 1000); self.assertEqual(wav_file.getnchannels(), 1)
+                self.assertEqual(wav_file.getsampwidth(), 2); self.assertEqual(wav_file.getnframes(), 8)
 
     def test_synthesizer_never_calls_piper_text_frontend(self):
-        synth = self._synth(voice=_FakeVoice())
-        with tempfile.TemporaryDirectory() as tmp:
-            synth("Hai câu.", Path(tmp) / "out.wav")
+        with tempfile.TemporaryDirectory() as tmp: self._synth(voice=_FakeVoice())("Hai câu.", Path(tmp) / "out.wav")
 
     def test_partial_output_is_removed_on_frontend_failure(self):
         synth = self._synth(frontend=_FakeFrontend(error=RuntimeError("frontend failed")))
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "out.wav"
-            with self.assertRaisesRegex(RuntimeError, "frontend failed"):
-                synth("Xin chào", output)
+            with self.assertRaisesRegex(RuntimeError, "frontend failed"): synth("Xin chào", output)
             self.assertFalse(output.exists())
 
     def test_partial_output_is_removed_on_second_chunk_inference_failure(self):
         synth = self._synth(voice=_FakeVoice(fail_on_call=2))
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "out.wav"
-            with self.assertRaisesRegex(RuntimeError, "onnx failed"):
-                synth("Hai câu.", output)
+            with self.assertRaisesRegex(RuntimeError, "onnx failed"): synth("Hai câu.", output)
             self.assertFalse(output.exists())
 
 
@@ -291,30 +214,20 @@ class TTSWindowsScriptContractTests(unittest.TestCase):
         self.assertIn('git clone', text)
         self.assertIn('rev-parse head', text)
         self.assertIn('npm.cmd', text)
-        self.assertIn('npm ci', text)
+        self.assertIn(' ci --omit=dev', text)
         self.assertIn('set "voice_id=calmwoman3688"', text)
         self.assertIn('voice_revision=62e57b18157ed213b3863a7a8a35b14d3404554b', text)
         self.assertIn('8db60d8afc50dc0921fd3a1b0b942813f44cc3744dbe2534617f2b8726096e7e', text)
         self.assertIn('971f57f8d504223fee5b40d664f503cf769baf7db21f7d2ae0554a75d07de2f8', text)
         self.assertIn('--smoke-test', text)
-        self.assertIn('--node', text)
-        self.assertIn('--nghi-adapter', text)
-        self.assertIn('--nghi-root', text)
-        self.assertIn('--nghi-commit', text)
-        self.assertNotIn('piper_windows_amd64.zip', text)
-        self.assertNotIn('2023.11.14-2', text)
-        self.assertNotIn('--native-piper', text)
+        self.assertIn('--node', text); self.assertIn('--nghi-adapter', text); self.assertIn('--nghi-root', text); self.assertIn('--nghi-commit', text)
+        self.assertNotIn('piper_windows_amd64.zip', text); self.assertNotIn('2023.11.14-2', text); self.assertNotIn('--native-piper', text)
 
     def test_check_script_is_read_only_and_reports_each_runtime_component(self):
         text = (ROOT / "Check-TTS.bat").read_text(encoding="utf-8").lower()
         self.assertIn("tts_service.get_status", text)
-        for label in ("python:", "node:", "nghi:", "model:", "backend:", "cache:"):
-            self.assertIn(label, text)
-        for forbidden in (
-            "pip install", "npm ci", "git clone", "invoke-webrequest", "curl ",
-            "bitsadmin", "start-bitstransfer",
-        ):
-            self.assertNotIn(forbidden, text)
+        for label in ("python:", "node:", "nghi:", "model:", "backend:", "cache:"): self.assertIn(label, text)
+        for forbidden in ("pip install", "npm ci", "git clone", "invoke-webrequest", "curl ", "bitsadmin", "start-bitstransfer"): self.assertNotIn(forbidden, text)
 
 
 if __name__ == "__main__":
