@@ -17,6 +17,9 @@ import unicodedata
 import uuid
 from pathlib import Path
 
+from tts_vieneu_assets import CODEC_DIR as DEFAULT_CODEC_DIR
+from tts_vieneu_assets import ONNX_DIR as DEFAULT_ONNX_DIR
+from tts_vieneu_assets import assets_ready
 from tts_vieneu_manifest import load_manifest, manifest_is_ready
 
 PROJECT_DIR = Path(__file__).resolve().parent
@@ -24,6 +27,8 @@ TTS_VENV = PROJECT_DIR / ".venv-tts"
 TTS_RUNTIME_ROOT = PROJECT_DIR / "tts" / "runtime" / "vieneu"
 HF_HOME = TTS_RUNTIME_ROOT / "hf"
 HF_HUB_CACHE = HF_HOME / "hub"
+VIENEU_ONNX_DIR = DEFAULT_ONNX_DIR
+VIENEU_CODEC_DIR = DEFAULT_CODEC_DIR
 SETUP_MANIFEST = TTS_RUNTIME_ROOT / "setup.json"
 CACHE_DIR = PROJECT_DIR / "tts_cache"
 WORKER_SCRIPT = PROJECT_DIR / "tts_worker.py"
@@ -119,6 +124,7 @@ def _vieneu_distribution_present() -> bool:
 
 
 def _hf_cache_has_files() -> bool:
+    """Diagnostic only; materialized assets, not Hub cache, gate readiness."""
     try:
         return HF_HUB_CACHE.is_dir() and any(
             path.is_file() for path in HF_HUB_CACHE.rglob("*")
@@ -127,13 +133,18 @@ def _hf_cache_has_files() -> bool:
         return False
 
 
+def _materialized_assets_present() -> bool:
+    return assets_ready(onnx_dir=VIENEU_ONNX_DIR, codec_dir=VIENEU_CODEC_DIR)
+
+
 def _runtime_components() -> dict:
     python_runtime_present = _worker_python().is_file()
     package_present = _vieneu_distribution_present()
     manifest = load_manifest(SETUP_MANIFEST)
     manifest_ready = manifest_is_ready(manifest)
+    materialized_assets_present = _materialized_assets_present()
     hf_cache_present = _hf_cache_has_files()
-    offline_assets_present = bool(manifest_ready and hf_cache_present)
+    offline_assets_present = bool(manifest_ready and materialized_assets_present)
     runtime_present = bool(
         python_runtime_present and package_present and offline_assets_present
     )
@@ -141,6 +152,7 @@ def _runtime_components() -> dict:
         "python_runtime_present": python_runtime_present,
         "package_present": package_present,
         "manifest_ready": manifest_ready,
+        "materialized_assets_present": materialized_assets_present,
         "hf_cache_present": hf_cache_present,
         "offline_assets_present": offline_assets_present,
         "runtime_present": runtime_present,
@@ -166,6 +178,7 @@ def get_status() -> dict:
         "python_runtime_present": bool(components["python_runtime_present"]),
         "package_present": bool(components["package_present"]),
         "offline_assets_present": bool(components["offline_assets_present"]),
+        "materialized_assets_present": bool(components["materialized_assets_present"]),
         "manifest_ready": bool(components["manifest_ready"]),
         "hf_cache_present": bool(components["hf_cache_present"]),
         "cache_files": cache_files,
