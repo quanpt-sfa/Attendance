@@ -16,6 +16,9 @@ tts_cache/
 .tts-audit/
 tts_audit_output/
 
+# Superpowers local execution workspace
+.superpowers/sdd/
+
 # Local Data & Photos
 *.xlsx
 *.csv
