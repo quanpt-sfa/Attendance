@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 import tts_service
+import tts_vieneu_assets
 
 FAKE_WAV = b"RIFF\x04\x00\x00\x00WAVE"
 READY_LINE = json.dumps({
@@ -142,24 +143,38 @@ class TTSServiceStatusTests(unittest.TestCase):
             mock.patch.object(tts_service, "TTS_RUNTIME_ROOT", root / "runtime"),
             mock.patch.object(tts_service, "HF_HOME", root / "runtime" / "hf"),
             mock.patch.object(tts_service, "HF_HUB_CACHE", root / "runtime" / "hf" / "hub"),
+            mock.patch.object(tts_service, "VIENEU_ONNX_DIR", root / "runtime" / "models" / "v3turbo" / "onnx_update"),
+            mock.patch.object(tts_service, "VIENEU_CODEC_DIR", root / "runtime" / "models" / "codec"),
             mock.patch.object(tts_service, "SETUP_MANIFEST", root / "runtime" / "setup.json"),
             mock.patch.object(tts_service, "CACHE_DIR", root / "cache"),
             mock.patch.object(tts_service, "WORKER_SCRIPT", Path(__file__).resolve()),
         )
 
-    def test_missing_runtime_manifest_and_cache_report_unavailable(self):
+    def _use_patches(self, patches):
+        class Stack:
+            def __enter__(self_nonlocal):
+                for patch in patches:
+                    patch.start()
+                return self_nonlocal
+            def __exit__(self_nonlocal, exc_type, exc, tb):
+                for patch in reversed(patches):
+                    patch.stop()
+        return Stack()
+
+    def test_missing_runtime_manifest_and_assets_report_unavailable(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             patches = self._patch_paths(root)
-            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+            with self._use_patches(patches):
                 status = tts_service.get_status()
         self.assertFalse(status["available"])
         self.assertFalse(status["runtime_present"])
         self.assertFalse(status["offline_assets_present"])
+        self.assertFalse(status["materialized_assets_present"])
         self.assertEqual(status["voice"], "Thùy Dung")
         self.assertEqual(status["engine_version"], "3.8.3")
 
-    def test_ready_status_requires_venv_distribution_manifest_and_nonempty_hf_cache(self):
+    def test_ready_status_requires_venv_distribution_manifest_and_all_materialized_assets(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             patches = self._patch_paths(root)
@@ -167,17 +182,33 @@ class TTSServiceStatusTests(unittest.TestCase):
             (root / ".venv-tts" / "bin" / "python").write_text("")
             dist = root / ".venv-tts" / "lib" / "python3.12" / "site-packages" / "vieneu-3.8.3.dist-info"
             dist.mkdir(parents=True)
-            hub = root / "runtime" / "hf" / "hub" / "models--x" / "blobs"
-            hub.mkdir(parents=True)
-            (hub / "blob").write_bytes(b"x")
+            onnx_dir = root / "runtime" / "models" / "v3turbo" / "onnx_update"
+            codec_dir = root / "runtime" / "models" / "codec"
+            for path in tts_vieneu_assets.required_asset_paths(onnx_dir, codec_dir):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"x")
             manifest = root / "runtime" / "setup.json"
             manifest.parent.mkdir(parents=True, exist_ok=True)
             manifest.write_text(json.dumps({"voice":"Thùy Dung","engine":"vieneu-v3-turbo","engine_version":"3.8.3","backend":"onnx-fp32","offline_verified":True}), encoding="utf-8")
-            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+            with self._use_patches(patches):
                 status = tts_service.get_status()
         self.assertTrue(status["available"])
         self.assertTrue(status["package_present"])
         self.assertTrue(status["offline_assets_present"])
+        self.assertTrue(status["materialized_assets_present"])
+
+    def test_missing_one_external_data_file_fails_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            patches = self._patch_paths(root)
+            onnx_dir = root / "runtime" / "models" / "v3turbo" / "onnx_update"
+            codec_dir = root / "runtime" / "models" / "codec"
+            paths = list(tts_vieneu_assets.required_asset_paths(onnx_dir, codec_dir))
+            for path in paths[:-1]:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"x")
+            with self._use_patches(patches):
+                self.assertFalse(tts_service._materialized_assets_present())
 
     def test_old_piper_files_do_not_make_runtime_ready(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -185,7 +216,7 @@ class TTSServiceStatusTests(unittest.TestCase):
             (root / "runtime" / "piper").mkdir(parents=True)
             (root / "runtime" / "piper" / "piper.exe").write_text("")
             patches = self._patch_paths(root)
-            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+            with self._use_patches(patches):
                 status = tts_service.get_status()
         self.assertFalse(status["available"])
 
@@ -206,7 +237,7 @@ class TTSWorkerLaunchTests(unittest.TestCase):
         tts_service.shutdown_worker()
 
     def _runtime_ok(self):
-        return {"runtime_present":True,"offline_assets_present":True,"python_runtime_present":True,"package_present":True,"manifest_ready":True,"hf_cache_present":True}
+        return {"runtime_present":True,"offline_assets_present":True,"python_runtime_present":True,"package_present":True,"manifest_ready":True,"materialized_assets_present":True,"hf_cache_present":False}
 
     def test_worker_launch_uses_offline_environment_simple_command_and_ready_handshake(self):
         fake = FakeProcess()
