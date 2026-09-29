@@ -27,6 +27,7 @@ DEFAULT_SMOKE_TEXT = (
 )
 NGHI_COMMIT_DEFAULT = "46d160da32041f7e176607203b958069265df7da"
 FRONTEND_TIMEOUT_SECONDS = 20.0
+INTER_CHUNK_SILENCE_SECONDS = 0.45
 
 
 def handle_request(request: dict, synthesize: Callable[[str, Path], None]) -> dict:
@@ -196,7 +197,7 @@ class NghiFrontendClient:
         def reader() -> None:
             try:
                 result_queue.put((True, stream.readline()))
-            except BaseException as exc:  # propagate pipe/decoder failures to caller
+            except BaseException as exc:
                 result_queue.put((False, exc))
 
         thread = threading.Thread(
@@ -247,7 +248,7 @@ class NghiFrontendClient:
 
 
 class NghiOnnxSynthesizer:
-    """Synthesize from exact NGHI phoneme IDs without Piper text processing."""
+    """Synthesize exact NGHI phoneme IDs and preserve NGHI chunk boundaries."""
 
     def __init__(self, model_path: Path, config_path: Path, frontend: NghiFrontendClient):
         self.model_path = Path(model_path)
@@ -294,11 +295,14 @@ class NghiOnnxSynthesizer:
             chunks = frontend_result["chunks"]
             voice = self._load_voice()
             syn_config = self._make_synthesis_config()
+            sample_rate = int(voice.config.sample_rate)
+            silence_frames = max(0, round(sample_rate * INTER_CHUNK_SILENCE_SECONDS))
+            inter_chunk_silence = b"\x00\x00" * silence_frames
             with wave.open(str(output), "wb") as wav_file:
                 wav_file.setnchannels(1)
                 wav_file.setsampwidth(2)
-                wav_file.setframerate(int(voice.config.sample_rate))
-                for chunk in chunks:
+                wav_file.setframerate(sample_rate)
+                for index, chunk in enumerate(chunks):
                     audio = voice.phoneme_ids_to_audio(
                         chunk["phoneme_ids"],
                         syn_config=syn_config,
@@ -307,6 +311,8 @@ class NghiOnnxSynthesizer:
                     if isinstance(audio, tuple):
                         audio = audio[0]
                     wav_file.writeframesraw(self._audio_to_pcm16(audio))
+                    if index + 1 < len(chunks) and inter_chunk_silence:
+                        wav_file.writeframesraw(inter_chunk_silence)
         except Exception:
             try:
                 output.unlink(missing_ok=True)
