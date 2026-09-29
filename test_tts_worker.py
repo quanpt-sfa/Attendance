@@ -175,13 +175,13 @@ class NghiOnnxSynthesizerTests(unittest.TestCase):
         self.assertEqual(cfg.speaker_id, 0); self.assertEqual(cfg.length_scale, 1.0)
         self.assertAlmostEqual(cfg.noise_scale, 0.667); self.assertAlmostEqual(cfg.noise_w_scale, 0.8)
 
-    def test_synthesizer_appends_chunk_audio_without_inserted_samples(self):
+    def test_synthesizer_inserts_pause_between_nghi_chunks(self):
         synth = self._synth()
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "out.wav"; synth("Hai câu.", output)
             with wave.open(str(output), "rb") as wav_file:
                 self.assertEqual(wav_file.getframerate(), 1000); self.assertEqual(wav_file.getnchannels(), 1)
-                self.assertEqual(wav_file.getsampwidth(), 2); self.assertEqual(wav_file.getnframes(), 8)
+                self.assertEqual(wav_file.getsampwidth(), 2); self.assertEqual(wav_file.getnframes(), 458)
 
     def test_synthesizer_never_calls_piper_text_frontend(self):
         with tempfile.TemporaryDirectory() as tmp: self._synth(voice=_FakeVoice())("Hai câu.", Path(tmp) / "out.wav")
