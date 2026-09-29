@@ -54,7 +54,14 @@ class VieneuSynthesizerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(sys.modules, {"soundfile": self._fake_soundfile([])}):
             synth("Huỳnh Quốc Phước.", Path(tmp) / "a.wav")
             synth("Mời sinh viên tiếp theo.", Path(tmp) / "b.wav")
-        self.assertEqual(calls, [{"mode": "v3turbo", "backend": "onnx", "precision": "fp32"}])
+        self.assertEqual(calls, [{
+            "mode": "v3turbo",
+            "backend": "onnx",
+            "precision": "fp32",
+            "backbone_repo": str(tts_worker.VIENEU_MODEL_ROOT),
+            "onnx_dir": str(tts_worker.VIENEU_ONNX_DIR),
+            "codec_dir": str(tts_worker.VIENEU_CODEC_DIR),
+        }])
         self.assertEqual(engine.infer_calls, [
             ("Huỳnh Quốc Phước.", "Thùy Dung"),
             ("Mời sinh viên tiếp theo.", "Thùy Dung"),
