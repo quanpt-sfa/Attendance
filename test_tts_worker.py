@@ -289,7 +289,7 @@ class TTSWindowsScriptContractTests(unittest.TestCase):
         self.assertIn('get-filehash -algorithm sha256', text)
         self.assertIn('set "nghi_commit=46d160da32041f7e176607203b958069265df7da"', text)
         self.assertIn('git clone', text)
-        self.assertIn('git rev-parse head', text)
+        self.assertIn('rev-parse head', text)
         self.assertIn('npm.cmd', text)
         self.assertIn('npm ci', text)
         self.assertIn('set "voice_id=calmwoman3688"', text)
