@@ -26,6 +26,15 @@ DEFAULT_SMOKE_TEXT = (
 NGHI_COMMIT_DEFAULT = "46d160da32041f7e176607203b958069265df7da"
 
 
+def prepare_spoken_name(text: str) -> str:
+    """Legacy audit helper; preserve case while normalizing whitespace.
+
+    Production synthesis does not call this function. The pinned NGHI frontend
+    owns all linguistic casing/acronym decisions.
+    """
+    return " ".join(str(text or "").split())
+
+
 def handle_request(request: dict, synthesize: Callable[[str, Path], None]) -> dict:
     """Handle one worker protocol request and return a JSON-serializable response."""
     request_id = request.get("id") if isinstance(request, dict) else None
